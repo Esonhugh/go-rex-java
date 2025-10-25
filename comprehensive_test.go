@@ -238,6 +238,13 @@ func TestComprehensiveJavaSerialization(t *testing.T) {
 			t.Errorf("Contents count mismatch: %d vs %d", len(originalStream.Contents), len(newStream.Contents))
 		}
 
+		fmt.Printf("Original: %s\n", hex.EncodeToString(originalData))
+		fmt.Printf("New: %s\n", hex.EncodeToString(encodedData))
+		if !bytes.Equal(originalData, encodedData) {
+			t.Errorf("Expected differences in byte-level encoding, but they are identical")
+		} else {
+			fmt.Println("✅ Created object structure is equivalent to original, with expected byte-level differences")
+		}
 		fmt.Println("✅ Successfully created equivalent Java File object structure")
 	})
 }
