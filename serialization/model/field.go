@@ -1,0 +1,162 @@
+package model
+
+import (
+	"github.com/esonhugh/go-rex-java/constants"
+	"io"
+)
+
+// Field represents a field description in Java serialization
+type Field struct {
+	*BaseElement
+	Type      ObjectType
+	Name      *Utf
+	FieldType *Utf
+}
+
+// NewField creates a new Field instance
+func NewField(stream *Stream) *Field {
+	return &Field{
+		BaseElement: NewBaseElement(stream),
+		Type:        "",
+		Name:        nil,
+		FieldType:   nil,
+	}
+}
+
+// Decode deserializes a Field from the given reader
+func (f *Field) Decode(reader io.Reader, stream *Stream) error {
+	// Read type code
+	typeCode := make([]byte, 1)
+	n, err := reader.Read(typeCode)
+	if err != nil || n != 1 {
+		return &DecodeError{Message: "failed to read field type code"}
+	}
+
+	// Validate type code
+	typeCodes := map[byte]ObjectType{
+		constants.TYPE_BYTE:    Byte,
+		constants.TYPE_CHAR:    Char,
+		constants.TYPE_DOUBLE:  Double,
+		constants.TYPE_FLOAT:   Float,
+		constants.TYPE_INT:     Int,
+		constants.TYPE_LONG:    Long,
+		constants.TYPE_SHORT:   Short,
+		constants.TYPE_BOOLEAN: Boolean,
+		constants.TYPE_ARRAY:   Array,
+		constants.TYPE_OBJECT:  Object,
+	}
+	if typeName, exists := typeCodes[typeCode[0]]; exists {
+		f.Type = typeName
+	} else {
+		return &DecodeError{Message: "invalid field type code"}
+	}
+
+	f.Stream = stream
+
+	// Decode name
+	f.Name = NewUtf(stream, "")
+	if err := f.Name.Decode(reader, stream); err != nil {
+		return err
+	}
+
+	// Decode field type if it's an object type
+	if f.IsObject() {
+		fieldType, err := DecodeElement(reader, stream)
+		if err != nil {
+			return err
+		}
+		if utf, ok := fieldType.(*Utf); ok {
+			f.FieldType = utf
+		}
+	}
+
+	return nil
+}
+
+// Encode serializes the Field to bytes
+func (f *Field) Encode() ([]byte, error) {
+	if f.Name == nil {
+		return nil, &EncodeError{Message: "field name is nil"}
+	}
+
+	if !f.IsTypeValid() {
+		return nil, &EncodeError{Message: "invalid field type"}
+	}
+
+	encoded := make([]byte, 0, 1024)
+
+	// Find type code
+	typeCodes := map[byte]ObjectType{
+		'B': Byte, 'C': Char, 'D': Double, 'F': Float,
+		'I': Int, 'J': Long, 'S': Short, 'Z': Boolean,
+		'[': Array, 'L': Object,
+	}
+	var typeCode byte
+	for code, typeName := range typeCodes {
+		if typeName == f.Type {
+			typeCode = code
+			break
+		}
+	}
+	encoded = append(encoded, typeCode)
+
+	// Encode name
+	nameBytes, err := f.Name.Encode()
+	if err != nil {
+		return nil, err
+	}
+	encoded = append(encoded, nameBytes...)
+
+	// Encode field type if it's an object type
+	if f.IsObject() && f.FieldType != nil {
+		// Field type should be encoded as a TC_STRING element
+		fieldTypeBytes, err := EncodeElement(f.FieldType)
+		if err != nil {
+			return nil, err
+		}
+		encoded = append(encoded, fieldTypeBytes...)
+	}
+
+	return encoded, nil
+}
+
+// IsTypeValid checks if the field type is valid
+func (f *Field) IsTypeValid() bool {
+	typeCodes := map[byte]ObjectType{
+		'B': Byte, 'C': Char, 'D': Double, 'F': Float,
+		'I': Int, 'J': Long, 'S': Short, 'Z': Boolean,
+		'[': Array, 'L': Object,
+	}
+	for _, typeName := range typeCodes {
+		if typeName == f.Type {
+			return true
+		}
+	}
+	return false
+}
+
+// IsPrimitive checks if the field type is primitive
+func (f *Field) IsPrimitive() bool {
+	return f.Type.IsPrimitive()
+}
+
+// IsObject checks if the field type is an object
+func (f *Field) IsObject() bool {
+	return f.Type.IsObject()
+}
+
+// String returns a string representation of the Field
+func (f *Field) String() string {
+	if f.Name == nil {
+		return "Field(nil)"
+	}
+
+	result := f.Name.String() + " "
+	if f.IsPrimitive() {
+		result += "(" + f.Type.String() + ")"
+	} else if f.FieldType != nil {
+		result += "(" + f.FieldType.String() + ")"
+	}
+
+	return result
+}

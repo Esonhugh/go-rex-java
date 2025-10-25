@@ -1,0 +1,71 @@
+package model
+
+import (
+	"fmt"
+	"github.com/esonhugh/go-rex-java/constants"
+	"io"
+)
+
+// BlockData represents block data in Java serialization
+type BlockData struct {
+	*BaseElement
+	Data []byte
+}
+
+// NewBlockData creates a new BlockData instance
+func NewBlockData(stream *Stream) *BlockData {
+	return &BlockData{
+		BaseElement: NewBaseElement(stream),
+		Data:        make([]byte, 0),
+	}
+}
+
+// Decode deserializes a BlockData from the given reader
+func (bd *BlockData) Decode(reader io.Reader, stream *Stream) error {
+	bd.Stream = stream
+
+	// Read length (1 byte)
+	lengthBytes := make([]byte, constants.SIZE_BYTE)
+	n, err := reader.Read(lengthBytes)
+	if err != nil || n != 1 {
+		return &DecodeError{Message: "failed to read block data length"}
+	}
+	length := lengthBytes[0]
+
+	// Read data
+	if length == 0 {
+		bd.Data = make([]byte, 0)
+	} else {
+		bd.Data = make([]byte, length)
+		n, err := reader.Read(bd.Data)
+		if err != nil || n != int(length) {
+			return &DecodeError{Message: "failed to read block data contents"}
+		}
+	}
+
+	return nil
+}
+
+// Encode serializes the BlockData to bytes
+func (bd *BlockData) Encode() ([]byte, error) {
+	encoded := make([]byte, 1+len(bd.Data))
+	encoded[0] = byte(len(bd.Data))
+	copy(encoded[1:], bd.Data)
+	return encoded, nil
+}
+
+// String returns a string representation of the BlockData
+func (bd *BlockData) String() string {
+	if len(bd.Data) == 0 {
+		return "[ ]"
+	}
+	result := "[ "
+	for i, b := range bd.Data {
+		if i > 0 {
+			result += ", "
+		}
+		result += fmt.Sprintf("0x%x", b)
+	}
+	result += " ]"
+	return result
+}
