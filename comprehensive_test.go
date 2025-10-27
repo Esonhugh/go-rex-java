@@ -194,8 +194,8 @@ func TestComprehensiveJavaSerialization(t *testing.T) {
 		builder := serialization.NewBuilder()
 		fileClass := builder.NewClass(&serialization.ClassOptions{
 			Name:   "java.io.File",
-			Serial: 0x042da4450e0de4ff, // 使用原始文件的 serialVersionUID
-			Flags:  0x02,
+			Serial: 0x042da4450e0de4ff,                                   // 使用原始文件的 serialVersionUID
+			Flags:  uint8(model.SC_SERIALIZABLE | model.SC_WRITE_METHOD), // SC_SERIALIZABLE | SC_WRITE_METHOD
 			Fields: []serialization.FieldData{
 				{Type: model.Object, Name: "path", FieldType: "Ljava/lang/String;"},
 			},
@@ -239,13 +239,13 @@ func TestComprehensiveJavaSerialization(t *testing.T) {
 		}
 
 		fmt.Printf("Original: %s\n", hex.EncodeToString(originalData))
-		fmt.Printf("New: %s\n", hex.EncodeToString(encodedData))
-		if !bytes.Equal(originalData, encodedData) {
-			t.Errorf("Expected differences in byte-level encoding, but they are identical")
-		} else {
+		fmt.Printf("New:      %s\n", hex.EncodeToString(encodedData))
+		if bytes.Equal(originalData, encodedData) {
 			fmt.Println("✅ Created object structure is equivalent to original, with expected byte-level differences")
+			fmt.Println("✅ Successfully created equivalent Java File object structure")
+		} else {
+			t.Errorf("Expected differences in byte-level encoding, but they are identical")
 		}
-		fmt.Println("✅ Successfully created equivalent Java File object structure")
 	})
 }
 

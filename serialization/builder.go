@@ -70,10 +70,9 @@ func (b *Builder) NewObject(opts *ObjectOptions) *model.NewObject {
 func (b *Builder) NewClass(opts *ClassOptions) *model.NewClassDesc {
 	classDesc := model.NewNewClassDesc(nil)
 
-	// Set default annotations
+	// Set default annotations (empty annotation with just TC_ENDBLOCKDATA)
 	classDesc.ClassAnnotation = model.NewAnnotation(nil)
 	classDesc.ClassAnnotation.Contents = []model.Element{
-		model.NewNullReference(nil),
 		model.NewEndBlockData(nil),
 	}
 
