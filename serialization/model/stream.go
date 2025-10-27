@@ -2,6 +2,7 @@ package model
 
 import (
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
 	"github.com/esonhugh/go-rex-java/constants"
 	"io"
@@ -103,6 +104,18 @@ func (s *Stream) String() string {
 	return result
 }
 
+// MarshalJSON marshals the Stream to JSON
+func (s *Stream) MarshalJSON() ([]byte, error) {
+	result := map[string]interface{}{
+		"type":       "Stream",
+		"magic":      fmt.Sprintf("0x%x", s.Magic),
+		"version":    s.Version,
+		"contents":   marshalElements(s.Contents),
+		"references": marshalReferences(s.References),
+	}
+	return json.Marshal(result)
+}
+
 // DecodeMagic deserializes the magic stream value
 func (s *Stream) DecodeMagic(reader io.Reader) error {
 	return s.decodeMagic(reader)
@@ -145,4 +158,76 @@ func (s *Stream) decodeVersion(reader io.Reader) error {
 
 	s.Version = version
 	return nil
+}
+
+// marshalElements marshals a slice of elements to JSON-friendly format
+func marshalElements(elements []Element) []interface{} {
+	result := make([]interface{}, 0, len(elements))
+	for _, elem := range elements {
+		result = append(result, marshalElement(elem))
+	}
+	return result
+}
+
+// marshalReferences marshals references with their handles
+func marshalReferences(references []Element) []interface{} {
+	result := make([]interface{}, 0, len(references))
+	for i, ref := range references {
+		refData := marshalElement(ref)
+		if refMap, ok := refData.(map[string]interface{}); ok {
+			refMap["handle"] = fmt.Sprintf("0x%x", i+int(constants.BASE_WIRE_HANDLE))
+		}
+		result = append(result, refData)
+	}
+	return result
+}
+
+// marshalElement marshals a single element to JSON-friendly format
+func marshalElement(elem Element) interface{} {
+	if elem == nil {
+		return nil
+	}
+
+	// Type switch to handle different element types
+	switch e := elem.(type) {
+	case *NewObject:
+		return marshalNewObject(e)
+	case *NewClassDesc:
+		return marshalNewClassDesc(e)
+	case *ProxyClassDesc:
+		return marshalProxyClassDesc(e)
+	case *NewClass:
+		return marshalNewClass(e)
+	case *NewEnum:
+		return marshalNewEnum(e)
+	case *NewArray:
+		return marshalNewArray(e)
+	case *Utf:
+		return marshalUtf(e)
+	case *LongUtf:
+		return marshalLongUtf(e)
+	case *Reference:
+		return marshalReference(e)
+	case *NullReference:
+		return marshalNullReference()
+	case *ClassDesc:
+		return marshalClassDesc(e)
+	case *BlockData:
+		return marshalBlockData(e)
+	case *BlockDataLong:
+		return marshalBlockDataLong(e)
+	case *EndBlockData:
+		return marshalEndBlockData()
+	case *Annotation:
+		return marshalAnnotation(e)
+	case *Field:
+		return marshalField(e)
+	case *Reset:
+		return marshalReset()
+	default:
+		return map[string]interface{}{
+			"type":  "Unknown",
+			"value": e.String(),
+		}
+	}
 }

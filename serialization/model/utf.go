@@ -2,6 +2,7 @@ package model
 
 import (
 	"encoding/binary"
+	"encoding/json"
 	"io"
 )
 
@@ -59,4 +60,21 @@ func (u *Utf) Encode() ([]byte, error) {
 // String returns the contents as string representation
 func (u *Utf) String() string {
 	return u.Contents
+}
+
+// marshalUtf marshals a Utf to JSON-friendly format
+func marshalUtf(u *Utf) interface{} {
+	if u == nil {
+		return nil
+	}
+	return map[string]interface{}{
+		"type":     "Utf",
+		"length":   u.Length,
+		"contents": u.Contents,
+	}
+}
+
+// MarshalJSON marshals Utf to JSON
+func (u *Utf) MarshalJSON() ([]byte, error) {
+	return json.Marshal(marshalUtf(u))
 }

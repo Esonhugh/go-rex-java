@@ -37,3 +37,15 @@ func (ne *NewEnum) Encode() ([]byte, error) {
 func (ne *NewEnum) String() string {
 	return "NewEnum"
 }
+
+// marshalNewEnum marshals a NewEnum to JSON-friendly format
+func marshalNewEnum(ne *NewEnum) interface{} {
+	if ne == nil {
+		return nil
+	}
+	return map[string]interface{}{
+		"type":               "NewEnum",
+		"enum_class_desc":    marshalClassDesc(ne.EnumClassDesc),
+		"enum_constant_name": marshalUtf(ne.EnumConstantName),
+	}
+}

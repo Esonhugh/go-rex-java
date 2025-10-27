@@ -1,6 +1,7 @@
 package model
 
 import (
+	"encoding/json"
 	"io"
 )
 
@@ -30,4 +31,16 @@ func (nr *NullReference) Encode() ([]byte, error) {
 // String returns a string representation of the NullReference
 func (nr *NullReference) String() string {
 	return "NullReference"
+}
+
+// marshalNullReference marshals a NullReference to JSON-friendly format
+func marshalNullReference() interface{} {
+	return map[string]interface{}{
+		"type": "NullReference",
+	}
+}
+
+// MarshalJSON marshals NullReference to JSON
+func (nr *NullReference) MarshalJSON() ([]byte, error) {
+	return json.Marshal(marshalNullReference())
 }

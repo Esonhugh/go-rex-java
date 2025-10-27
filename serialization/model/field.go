@@ -1,6 +1,7 @@
 package model
 
 import (
+	"encoding/json"
 	"github.com/esonhugh/go-rex-java/constants"
 	"io"
 )
@@ -159,4 +160,25 @@ func (f *Field) String() string {
 	}
 
 	return result
+}
+
+// marshalField marshals a Field to JSON-friendly format
+func marshalField(f *Field) interface{} {
+	result := map[string]interface{}{
+		"type": f.Type.String(),
+	}
+
+	if f.Name != nil {
+		result["name"] = f.Name.String()
+	}
+	if f.FieldType != nil {
+		result["field_type"] = f.FieldType.String()
+	}
+
+	return result
+}
+
+// MarshalJSON marshals Field to JSON
+func (f *Field) MarshalJSON() ([]byte, error) {
+	return json.Marshal(marshalField(f))
 }

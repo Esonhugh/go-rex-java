@@ -35,3 +35,20 @@ func (pcd *ProxyClassDesc) Encode() ([]byte, error) {
 func (pcd *ProxyClassDesc) String() string {
 	return "ProxyClassDesc"
 }
+
+// marshalProxyClassDesc marshals a ProxyClassDesc to JSON-friendly format
+func marshalProxyClassDesc(pcd *ProxyClassDesc) interface{} {
+	if pcd == nil {
+		return nil
+	}
+
+	interfaces := make([]interface{}, len(pcd.Interfaces))
+	for i, iface := range pcd.Interfaces {
+		interfaces[i] = marshalUtf(iface)
+	}
+
+	return map[string]interface{}{
+		"type":       "ProxyClassDesc",
+		"interfaces": interfaces,
+	}
+}

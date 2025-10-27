@@ -1,6 +1,7 @@
 package model
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/esonhugh/go-rex-java/constants"
 	"io"
@@ -68,4 +69,27 @@ func (bd *BlockData) String() string {
 	}
 	result += " ]"
 	return result
+}
+
+// marshalBlockData marshals a BlockData to JSON-friendly format
+func marshalBlockData(bd *BlockData) interface{} {
+	if bd == nil {
+		return nil
+	}
+
+	// Convert bytes to hex strings for better JSON readability
+	hexData := make([]string, len(bd.Data))
+	for i, b := range bd.Data {
+		hexData[i] = fmt.Sprintf("0x%02x", b)
+	}
+
+	return map[string]interface{}{
+		"type": "BlockData",
+		"data": hexData,
+	}
+}
+
+// MarshalJSON marshals BlockData to JSON
+func (bd *BlockData) MarshalJSON() ([]byte, error) {
+	return json.Marshal(marshalBlockData(bd))
 }

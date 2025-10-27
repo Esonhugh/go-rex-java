@@ -43,3 +43,15 @@ func (lu *LongUtf) String() string {
 	}
 	return lu.Contents
 }
+
+// marshalLongUtf marshals a LongUtf to JSON-friendly format
+func marshalLongUtf(lu *LongUtf) interface{} {
+	if lu == nil {
+		return nil
+	}
+	return map[string]interface{}{
+		"type":     "LongUtf",
+		"length":   lu.Length,
+		"contents": lu.Contents,
+	}
+}

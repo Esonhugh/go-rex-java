@@ -35,3 +35,14 @@ func (nc *NewClass) Encode() ([]byte, error) {
 func (nc *NewClass) String() string {
 	return "NewClass"
 }
+
+// marshalNewClass marshals a NewClass to JSON-friendly format
+func marshalNewClass(nc *NewClass) interface{} {
+	if nc == nil {
+		return nil
+	}
+	return map[string]interface{}{
+		"type":       "NewClass",
+		"class_name": marshalUtf(nc.ClassName),
+	}
+}

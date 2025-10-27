@@ -2,6 +2,8 @@ package model
 
 import (
 	"encoding/binary"
+	"encoding/json"
+	"fmt"
 	"io"
 )
 
@@ -42,4 +44,20 @@ func (r *Reference) Encode() ([]byte, error) {
 // String returns a string representation of the Reference
 func (r *Reference) String() string {
 	return "Reference"
+}
+
+// marshalReference marshals a Reference to JSON-friendly format
+func marshalReference(r *Reference) interface{} {
+	if r == nil {
+		return nil
+	}
+	return map[string]interface{}{
+		"type":   "Reference",
+		"handle": fmt.Sprintf("0x%x", r.Handle),
+	}
+}
+
+// MarshalJSON marshals Reference to JSON
+func (r *Reference) MarshalJSON() ([]byte, error) {
+	return json.Marshal(marshalReference(r))
 }

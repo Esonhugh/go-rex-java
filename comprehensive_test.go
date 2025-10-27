@@ -3,8 +3,10 @@ package rexjava
 import (
 	"bytes"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"strings"
 	"testing"
 
 	"github.com/esonhugh/go-rex-java/serialization"
@@ -245,6 +247,19 @@ func TestComprehensiveJavaSerialization(t *testing.T) {
 			fmt.Println("✅ Successfully created equivalent Java File object structure")
 		} else {
 			t.Errorf("Expected differences in byte-level encoding, but they are identical")
+		}
+
+		ob, _ := json.MarshalIndent(originalStream, "", "  ")
+		nb, _ := json.MarshalIndent(newStream, "", "  ")
+		oblines := strings.Split(string(ob), "\n")
+		nblines := strings.Split(string(nb), "\n")
+		for i := 0; i < max(len(oblines), len(nblines)); i++ {
+			if i < len(oblines) {
+				t.Logf("Line %d origin: %s\n", i, oblines[i])
+			}
+			if i < len(nblines) {
+				t.Logf("Line %d new   : %s\n", i, nblines[i])
+			}
 		}
 	})
 }

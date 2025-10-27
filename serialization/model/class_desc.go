@@ -1,6 +1,7 @@
 package model
 
 import (
+	"encoding/json"
 	"io"
 )
 
@@ -49,6 +50,24 @@ func (cd *ClassDesc) Encode() ([]byte, error) {
 	default:
 		return nil, &EncodeError{Message: "failed to serialize ClassDesc"}
 	}
+}
+
+// marshalClassDesc marshals a ClassDesc to JSON-friendly format
+func marshalClassDesc(cd *ClassDesc) interface{} {
+	if cd == nil || cd.Description == nil {
+		return nil
+	}
+
+	result := map[string]interface{}{
+		"type":        "ClassDesc",
+		"description": marshalElement(cd.Description),
+	}
+	return result
+}
+
+// MarshalJSON marshals ClassDesc to JSON
+func (cd *ClassDesc) MarshalJSON() ([]byte, error) {
+	return json.Marshal(marshalClassDesc(cd))
 }
 
 // String returns a string representation of the ClassDesc

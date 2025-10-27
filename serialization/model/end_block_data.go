@@ -31,3 +31,10 @@ func (ebd *EndBlockData) Encode() ([]byte, error) {
 func (ebd *EndBlockData) String() string {
 	return "EndBlockData"
 }
+
+// marshalEndBlockData marshals an EndBlockData to JSON-friendly format
+func marshalEndBlockData() interface{} {
+	return map[string]interface{}{
+		"type": "EndBlockData",
+	}
+}

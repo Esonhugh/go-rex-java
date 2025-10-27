@@ -2,6 +2,7 @@ package model
 
 import (
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
 	"github.com/esonhugh/go-rex-java/constants"
 	"io"
@@ -152,6 +153,40 @@ func (ncd *NewClassDesc) Encode() ([]byte, error) {
 	}
 
 	return encoded, nil
+}
+
+// marshalNewClassDesc marshals a NewClassDesc to JSON-friendly format
+func marshalNewClassDesc(ncd *NewClassDesc) interface{} {
+	result := map[string]interface{}{
+		"type":           "NewClassDesc",
+		"class_name":     marshalUtf(ncd.ClassName),
+		"serial_version": ncd.SerialVersion,
+		"flags":          ncd.Flags,
+		"fields":         marshalFields(ncd.Fields),
+	}
+
+	if ncd.ClassAnnotation != nil {
+		result["class_annotation"] = marshalAnnotation(ncd.ClassAnnotation)
+	}
+	if ncd.SuperClass != nil {
+		result["super_class"] = marshalClassDesc(ncd.SuperClass)
+	}
+
+	return result
+}
+
+// marshalFields marshals a slice of fields
+func marshalFields(fields []*Field) []interface{} {
+	result := make([]interface{}, 0, len(fields))
+	for _, field := range fields {
+		result = append(result, marshalField(field))
+	}
+	return result
+}
+
+// MarshalJSON marshals NewClassDesc to JSON
+func (ncd *NewClassDesc) MarshalJSON() ([]byte, error) {
+	return json.Marshal(marshalNewClassDesc(ncd))
 }
 
 // String returns a string representation of the NewClassDesc

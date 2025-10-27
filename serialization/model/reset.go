@@ -31,3 +31,10 @@ func (r *Reset) Encode() ([]byte, error) {
 func (r *Reset) String() string {
 	return "Reset"
 }
+
+// marshalReset marshals a Reset to JSON-friendly format
+func marshalReset() interface{} {
+	return map[string]interface{}{
+		"type": "Reset",
+	}
+}

@@ -55,3 +55,14 @@ func (a *Annotation) Encode() ([]byte, error) {
 func (a *Annotation) String() string {
 	return "Annotation"
 }
+
+// marshalAnnotation marshals an Annotation to JSON-friendly format
+func marshalAnnotation(a *Annotation) interface{} {
+	if a == nil {
+		return nil
+	}
+	return map[string]interface{}{
+		"type":     "Annotation",
+		"contents": marshalElements(a.Contents),
+	}
+}

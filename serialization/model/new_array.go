@@ -39,3 +39,16 @@ func (na *NewArray) Encode() ([]byte, error) {
 func (na *NewArray) String() string {
 	return "NewArray"
 }
+
+// marshalNewArray marshals a NewArray to JSON-friendly format
+func marshalNewArray(na *NewArray) interface{} {
+	if na == nil {
+		return nil
+	}
+	return map[string]interface{}{
+		"type":              "NewArray",
+		"array_description": marshalClassDesc(na.ArrayDescription),
+		"type_info":         na.Type,
+		"values":            na.Values,
+	}
+}

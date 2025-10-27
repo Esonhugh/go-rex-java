@@ -2,6 +2,7 @@ package model
 
 import (
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
 	"github.com/esonhugh/go-rex-java/constants"
 	"io"
@@ -87,6 +88,53 @@ func (no *NewObject) Encode() ([]byte, error) {
 	}
 
 	return encoded, nil
+}
+
+// marshalNewObject marshals a NewObject to JSON-friendly format
+func marshalNewObject(no *NewObject) interface{} {
+	result := map[string]interface{}{
+		"type":       "NewObject",
+		"class_desc": marshalClassDesc(no.ClassDesc),
+		"class_data": marshalPrimitiveValues(no.ClassData),
+	}
+	return result
+}
+
+// marshalPrimitiveValues marshals a slice of primitive values
+func marshalPrimitiveValues(values []*PrimitiveValue) []interface{} {
+	result := make([]interface{}, 0, len(values))
+	for _, pv := range values {
+		result = append(result, marshalPrimitiveValue(pv))
+	}
+	return result
+}
+
+// marshalPrimitiveValue marshals a single primitive value
+func marshalPrimitiveValue(pv *PrimitiveValue) interface{} {
+	if pv == nil {
+		return nil
+	}
+
+	result := map[string]interface{}{
+		"type": pv.Type.String(),
+	}
+
+	if pv.Type == Object {
+		if elem, ok := pv.Value.(Element); ok {
+			result["value"] = marshalElement(elem)
+		} else {
+			result["value"] = nil
+		}
+	} else {
+		result["value"] = pv.Value
+	}
+
+	return result
+}
+
+// MarshalJSON marshals NewObject to JSON
+func (no *NewObject) MarshalJSON() ([]byte, error) {
+	return json.Marshal(marshalNewObject(no))
 }
 
 // String returns a string representation of the NewObject
