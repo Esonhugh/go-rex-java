@@ -1,0 +1,11 @@
+./.idea/
+./.vscode/
+./node_modules/
+
+./rex-java/
+
+*.log
+.DS_Store
+.env
+./*.ser
+./ysoserial_payloads.json

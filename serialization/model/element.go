@@ -1,6 +1,7 @@
 package model
 
 import (
+	"fmt"
 	"github.com/esonhugh/go-rex-java/constants"
 	"io"
 )
@@ -115,7 +116,9 @@ func DecodeElement(reader io.Reader, stream *Stream) (Element, error) {
 		err := elem.Decode(reader, stream)
 		return elem, err
 	default:
-		return nil, &DecodeError{Message: "failed to unserialize content"}
+		return nil, &DecodeError{
+			Message: fmt.Sprintf("failed to unserialize content, unknown opcode: %x", opcode[0]),
+		}
 	}
 }
 
