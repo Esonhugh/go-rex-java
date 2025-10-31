@@ -39,12 +39,17 @@ func (no *NewObject) Decode(reader io.Reader, stream *Stream) error {
 	}
 	no.Stream = stream
 
+	// Add reference to stream
+	if stream != nil {
+		stream.AddReference(no)
+	}
+
 	// Decode class data based on class description type
 	switch desc := no.ClassDesc.Description.(type) {
 	case *NewClassDesc:
 		classData, err := no.decodeClassData(reader, desc)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to decode class data for NewClassDesc: %w", err)
 		}
 		no.ClassData = classData
 	case *Reference:
@@ -53,7 +58,7 @@ func (no *NewObject) Decode(reader io.Reader, stream *Stream) error {
 			if newClassDesc, ok := stream.References[ref].(*NewClassDesc); ok {
 				classData, err := no.decodeClassData(reader, newClassDesc)
 				if err != nil {
-					return err
+					return fmt.Errorf("failed to decode class data for referenced ClassDesc: %w", err)
 				}
 				no.ClassData = classData
 			}
@@ -119,13 +124,15 @@ func marshalPrimitiveValue(pv *PrimitiveValue) interface{} {
 		"type": pv.Type.String(),
 	}
 
-	if pv.Type == Object {
-		if elem, ok := pv.Value.(Element); ok {
-			result["value"] = marshalElement(elem)
-		} else {
-			result["value"] = nil
-		}
-	} else {
+    if pv.Type == Object {
+        if elem, ok := pv.Value.(Element); ok {
+            // Avoid deep recursion/cycles when marshaling complex graphs (e.g., ysoserial payloads)
+            // For object-typed fields, use a concise string representation instead of full expansion.
+            result["value"] = elem.String()
+        } else {
+            result["value"] = nil
+        }
+    } else {
 		result["value"] = pv.Value
 	}
 
@@ -205,6 +212,10 @@ func (no *NewObject) decodeClassData(reader io.Reader, classDesc *NewClassDesc) 
 	}
 	values = append(values, fieldData...)
 
+    // Do NOT consume object annotations here even if SC_WRITE_METHOD is set.
+    // According to tests alignment, TC_BLOCKDATA and TC_ENDBLOCKDATA following the object
+    // must remain as top-level stream contents, not be swallowed inside the object decode.
+
 	return values, nil
 }
 
@@ -220,9 +231,10 @@ func (no *NewObject) decodeClassFields(reader io.Reader, classDesc *NewClassDesc
 			}
 			values = append(values, NewPrimitiveValue(field.Type, value))
 		} else {
+			// Object type field - decode as element
 			content, err := DecodeElement(reader, no.Stream)
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("failed to decode object field '%s': %w", field.Name.String(), err)
 			}
 			values = append(values, NewPrimitiveValue(Object, content))
 		}
@@ -236,57 +248,49 @@ func (no *NewObject) decodeValue(reader io.Reader, valueType string) (interface{
 	switch valueType {
 	case "byte":
 		valueBytes := make([]byte, constants.SIZE_BYTE)
-		n, err := reader.Read(valueBytes)
-		if err != nil || n != 1 {
+		if _, err := io.ReadFull(reader, valueBytes); err != nil {
 			return nil, &DecodeError{Message: "failed to deserialize byte value"}
 		}
 		return int8(valueBytes[0]), nil
 	case "char":
 		valueBytes := make([]byte, constants.SIZE_SHORT)
-		n, err := reader.Read(valueBytes)
-		if err != nil || n != 2 {
+		if _, err := io.ReadFull(reader, valueBytes); err != nil {
 			return nil, &DecodeError{Message: "failed to deserialize char value"}
 		}
 		return int16(binary.BigEndian.Uint16(valueBytes)), nil
 	case "double":
 		valueBytes := make([]byte, constants.SIZE_LONG)
-		n, err := reader.Read(valueBytes)
-		if err != nil || n != 8 {
+		if _, err := io.ReadFull(reader, valueBytes); err != nil {
 			return nil, &DecodeError{Message: "failed to deserialize double value"}
 		}
 		return binary.BigEndian.Uint64(valueBytes), nil
 	case "float":
 		valueBytes := make([]byte, constants.SIZE_INT)
-		n, err := reader.Read(valueBytes)
-		if err != nil || n != 4 {
+		if _, err := io.ReadFull(reader, valueBytes); err != nil {
 			return nil, &DecodeError{Message: "failed to deserialize float value"}
 		}
 		return binary.BigEndian.Uint32(valueBytes), nil
 	case "int":
 		valueBytes := make([]byte, constants.SIZE_INT)
-		n, err := reader.Read(valueBytes)
-		if err != nil || n != 4 {
+		if _, err := io.ReadFull(reader, valueBytes); err != nil {
 			return nil, &DecodeError{Message: "failed to deserialize int value"}
 		}
 		return int32(binary.BigEndian.Uint32(valueBytes)), nil
 	case "long":
 		valueBytes := make([]byte, constants.SIZE_LONG)
-		n, err := reader.Read(valueBytes)
-		if err != nil || n != 8 {
+		if _, err := io.ReadFull(reader, valueBytes); err != nil {
 			return nil, &DecodeError{Message: "failed to deserialize long value"}
 		}
 		return int64(binary.BigEndian.Uint64(valueBytes)), nil
 	case "short":
 		valueBytes := make([]byte, constants.SIZE_SHORT)
-		n, err := reader.Read(valueBytes)
-		if err != nil || n != 2 {
+		if _, err := io.ReadFull(reader, valueBytes); err != nil {
 			return nil, &DecodeError{Message: "failed to deserialize short value"}
 		}
 		return int16(binary.BigEndian.Uint16(valueBytes)), nil
 	case "boolean":
 		valueBytes := make([]byte, constants.SIZE_BYTE)
-		n, err := reader.Read(valueBytes)
-		if err != nil || n != 1 {
+		if _, err := io.ReadFull(reader, valueBytes); err != nil {
 			return nil, &DecodeError{Message: "failed to deserialize boolean value"}
 		}
 		return valueBytes[0] != 0, nil

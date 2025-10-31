@@ -1,6 +1,8 @@
 package model
 
 import (
+	"encoding/binary"
+	"github.com/esonhugh/go-rex-java/constants"
 	"io"
 )
 
@@ -21,7 +23,32 @@ func NewProxyClassDesc(stream *Stream) *ProxyClassDesc {
 // Decode deserializes a ProxyClassDesc from the given reader
 func (pcd *ProxyClassDesc) Decode(reader io.Reader, stream *Stream) error {
 	pcd.Stream = stream
-	// TODO: Implement proxy class description decoding
+
+	// Read interface count (4 bytes, int32)
+	countBytes := make([]byte, constants.SIZE_INT)
+    if _, err := io.ReadFull(reader, countBytes); err != nil {
+        if err == io.EOF || err == io.ErrUnexpectedEOF {
+            return nil
+        }
+        return &DecodeError{Message: "failed to read proxy class description interface count"}
+    }
+	count := int32(binary.BigEndian.Uint32(countBytes))
+
+	// Add reference to stream
+	if stream != nil {
+		stream.AddReference(pcd)
+	}
+
+	// Read interfaces (each is a UTF string, not a TC_STRING element)
+	pcd.Interfaces = make([]*Utf, 0, count)
+	for i := int32(0); i < count; i++ {
+		utf := NewUtf(stream, "")
+		if err := utf.Decode(reader, stream); err != nil {
+			return &DecodeError{Message: "failed to decode proxy interface"}
+		}
+		pcd.Interfaces = append(pcd.Interfaces, utf)
+	}
+
 	return nil
 }
 

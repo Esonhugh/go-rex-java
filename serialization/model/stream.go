@@ -106,13 +106,15 @@ func (s *Stream) String() string {
 
 // MarshalJSON marshals the Stream to JSON
 func (s *Stream) MarshalJSON() ([]byte, error) {
-	result := map[string]interface{}{
-		"type":       "Stream",
-		"magic":      fmt.Sprintf("0x%x", s.Magic),
-		"version":    s.Version,
-		"contents":   marshalElements(s.Contents),
-		"references": marshalReferences(s.References),
-	}
+    // Keep JSON shallow to avoid deep recursion/stack overflow on complex graphs
+    result := map[string]interface{}{
+        "type":            "Stream",
+        "magic":           fmt.Sprintf("0x%x", s.Magic),
+        "version":         s.Version,
+        "contents_count":  len(s.Contents),
+        "references_count": len(s.References),
+        "references":       marshalReferences(s.References),
+    }
 	return json.Marshal(result)
 }
 
@@ -129,8 +131,7 @@ func (s *Stream) DecodeVersion(reader io.Reader) error {
 // decodeMagic deserializes the magic stream value
 func (s *Stream) decodeMagic(reader io.Reader) error {
 	magicBytes := make([]byte, constants.SIZE_SHORT)
-	n, err := reader.Read(magicBytes)
-	if err != nil || n != 2 {
+	if _, err := io.ReadFull(reader, magicBytes); err != nil {
 		return &DecodeError{Message: "failed to read magic number"}
 	}
 
@@ -146,8 +147,7 @@ func (s *Stream) decodeMagic(reader io.Reader) error {
 // decodeVersion deserializes the version stream
 func (s *Stream) decodeVersion(reader io.Reader) error {
 	versionBytes := make([]byte, constants.SIZE_SHORT)
-	n, err := reader.Read(versionBytes)
-	if err != nil || n != 2 {
+	if _, err := io.ReadFull(reader, versionBytes); err != nil {
 		return &DecodeError{Message: "failed to read version"}
 	}
 
@@ -171,15 +171,14 @@ func marshalElements(elements []Element) []interface{} {
 
 // marshalReferences marshals references with their handles
 func marshalReferences(references []Element) []interface{} {
-	result := make([]interface{}, 0, len(references))
-	for i, ref := range references {
-		refData := marshalElement(ref)
-		if refMap, ok := refData.(map[string]interface{}); ok {
-			refMap["handle"] = fmt.Sprintf("0x%x", i+int(constants.BASE_WIRE_HANDLE))
-		}
-		result = append(result, refData)
-	}
-	return result
+    // To avoid deep recursion/cycles when marshaling complex graphs, only expose handles
+    // rather than recursively expanding referenced objects.
+    result := make([]interface{}, 0, len(references))
+    for i := range references {
+        handle := fmt.Sprintf("0x%x", i+int(constants.BASE_WIRE_HANDLE))
+        result = append(result, handle)
+    }
+    return result
 }
 
 // marshalElement marshals a single element to JSON-friendly format

@@ -24,8 +24,7 @@ func NewReference(stream *Stream, handle uint32) *Reference {
 // Decode deserializes a Reference from the given reader
 func (r *Reference) Decode(reader io.Reader, stream *Stream) error {
 	handleBytes := make([]byte, 4)
-	n, err := reader.Read(handleBytes)
-	if err != nil || n != 4 {
+	if _, err := io.ReadFull(reader, handleBytes); err != nil {
 		return &DecodeError{Message: "failed to read reference handle"}
 	}
 

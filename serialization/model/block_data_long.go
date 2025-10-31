@@ -1,7 +1,9 @@
 package model
 
 import (
+	"encoding/binary"
 	"fmt"
+	"github.com/esonhugh/go-rex-java/constants"
 	"io"
 )
 
@@ -22,7 +24,27 @@ func NewBlockDataLong(stream *Stream) *BlockDataLong {
 // Decode deserializes a BlockDataLong from the given reader
 func (bdl *BlockDataLong) Decode(reader io.Reader, stream *Stream) error {
 	bdl.Stream = stream
-	// TODO: Implement long block data decoding
+
+	// Read length (4 bytes, uint32)
+	lengthBytes := make([]byte, constants.SIZE_INT)
+    if _, err := io.ReadFull(reader, lengthBytes); err != nil {
+        if err == io.EOF || err == io.ErrUnexpectedEOF {
+            return nil
+        }
+        return &DecodeError{Message: "failed to read long block data length"}
+    }
+	length := binary.BigEndian.Uint32(lengthBytes)
+
+	// Read data
+	if length == 0 {
+		bdl.Data = make([]byte, 0)
+	} else {
+		bdl.Data = make([]byte, length)
+		if _, err := io.ReadFull(reader, bdl.Data); err != nil {
+			return &DecodeError{Message: "failed to read long block data contents"}
+		}
+	}
+
 	return nil
 }
 

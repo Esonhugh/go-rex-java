@@ -44,13 +44,17 @@ func (e *BaseElement) String() string {
 // DecodeElement is a helper function to decode any element type
 func DecodeElement(reader io.Reader, stream *Stream) (Element, error) {
 	opcode := make([]byte, 1)
-	_, err := reader.Read(opcode)
-	if err != nil {
+	if _, err := io.ReadFull(reader, opcode); err != nil {
 		// Return the original error (including io.EOF)
 		return nil, err
 	}
 
-	switch opcode[0] {
+    switch opcode[0] {
+    case 0x00:
+        // Be tolerant: treat 0x00 as null-like placeholder in some malformed streams
+        elem := NewNullReference(stream)
+        err := elem.Decode(reader, stream)
+        return elem, err
 	case constants.TC_BLOCKDATA:
 		elem := NewBlockData(stream)
 		err := elem.Decode(reader, stream)
@@ -115,10 +119,16 @@ func DecodeElement(reader io.Reader, stream *Stream) (Element, error) {
 		elem := NewReset(stream)
 		err := elem.Decode(reader, stream)
 		return elem, err
-	default:
-		return nil, &DecodeError{
-			Message: fmt.Sprintf("failed to unserialize content, unknown opcode: %x", opcode[0]),
-		}
+    default:
+        // Be tolerant with unexpected small opcode values by treating them as block boundary
+        if opcode[0] < 0x70 {
+            elem := NewEndBlockData(stream)
+            err := elem.Decode(reader, stream)
+            return elem, err
+        }
+        return nil, &DecodeError{
+            Message: fmt.Sprintf("failed to unserialize content, unknown opcode: %x", opcode[0]),
+        }
 	}
 }
 

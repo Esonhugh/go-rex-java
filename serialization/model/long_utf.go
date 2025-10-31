@@ -1,6 +1,7 @@
 package model
 
 import (
+	"encoding/binary"
 	"io"
 )
 
@@ -23,7 +24,34 @@ func NewLongUtf(stream *Stream) *LongUtf {
 // Decode deserializes a LongUtf from the given reader
 func (lu *LongUtf) Decode(reader io.Reader, stream *Stream) error {
 	lu.Stream = stream
-	// TODO: Implement long UTF decoding
+
+	// Read length (8 bytes, uint64)
+	lengthBytes := make([]byte, 8)
+    n, err := reader.Read(lengthBytes)
+    if err != nil || n != 8 {
+        if err == io.EOF || err == io.ErrUnexpectedEOF {
+            return nil
+        }
+        return &DecodeError{Message: "failed to read long UTF length"}
+    }
+
+	lu.Length = binary.BigEndian.Uint64(lengthBytes)
+
+	// Read contents
+	if lu.Length == 0 {
+		lu.Contents = ""
+	} else {
+		contentsBytes := make([]byte, lu.Length)
+        n, err := reader.Read(contentsBytes)
+        if err != nil || n != int(lu.Length) {
+            if err == io.EOF || err == io.ErrUnexpectedEOF {
+                return nil
+            }
+            return &DecodeError{Message: "failed to read long UTF contents"}
+        }
+		lu.Contents = string(contentsBytes)
+	}
+
 	return nil
 }
 

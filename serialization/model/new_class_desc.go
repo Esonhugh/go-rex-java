@@ -44,8 +44,7 @@ func (ncd *NewClassDesc) Decode(reader io.Reader, stream *Stream) error {
 
 	// Decode serial version (8 bytes)
 	serialBytes := make([]byte, constants.SIZE_LONG)
-	n, err := reader.Read(serialBytes)
-	if err != nil || n != 8 {
+	if _, err := io.ReadFull(reader, serialBytes); err != nil {
 		return &DecodeError{Message: "failed to read serial version"}
 	}
 	ncd.SerialVersion = binary.BigEndian.Uint64(serialBytes)
@@ -57,16 +56,14 @@ func (ncd *NewClassDesc) Decode(reader io.Reader, stream *Stream) error {
 
 	// Decode flags (1 byte)
 	flagsBytes := make([]byte, constants.SIZE_BYTE)
-	n, err = reader.Read(flagsBytes)
-	if err != nil || n != 1 {
+	if _, err := io.ReadFull(reader, flagsBytes); err != nil {
 		return &DecodeError{Message: "failed to read flags"}
 	}
 	ncd.Flags = flagsBytes[0]
 
 	// Decode field count (2 bytes)
 	fieldCountBytes := make([]byte, constants.SIZE_SHORT)
-	n, err = reader.Read(fieldCountBytes)
-	if err != nil || n != 2 {
+	if _, err := io.ReadFull(reader, fieldCountBytes); err != nil {
 		return &DecodeError{Message: "failed to read field count"}
 	}
 	fieldCount := binary.BigEndian.Uint16(fieldCountBytes)

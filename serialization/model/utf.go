@@ -26,8 +26,7 @@ func NewUtf(stream *Stream, contents string) *Utf {
 func (u *Utf) Decode(reader io.Reader, stream *Stream) error {
 	// Read length (2 bytes)
 	lengthBytes := make([]byte, 2)
-	n, err := reader.Read(lengthBytes)
-	if err != nil || n != 2 {
+	if _, err := io.ReadFull(reader, lengthBytes); err != nil {
 		return &DecodeError{Message: "failed to read UTF length"}
 	}
 
@@ -39,8 +38,7 @@ func (u *Utf) Decode(reader io.Reader, stream *Stream) error {
 		u.Contents = ""
 	} else {
 		contentsBytes := make([]byte, u.Length)
-		n, err := reader.Read(contentsBytes)
-		if err != nil || n != int(u.Length) {
+		if _, err := io.ReadFull(reader, contentsBytes); err != nil {
 			return &DecodeError{Message: "failed to read UTF contents"}
 		}
 		u.Contents = string(contentsBytes)

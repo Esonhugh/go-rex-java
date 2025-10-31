@@ -28,8 +28,7 @@ func NewField(stream *Stream) *Field {
 func (f *Field) Decode(reader io.Reader, stream *Stream) error {
 	// Read type code
 	typeCode := make([]byte, 1)
-	n, err := reader.Read(typeCode)
-	if err != nil || n != 1 {
+	if _, err := io.ReadFull(reader, typeCode); err != nil {
 		return &DecodeError{Message: "failed to read field type code"}
 	}
 
@@ -60,16 +59,43 @@ func (f *Field) Decode(reader io.Reader, stream *Stream) error {
 		return err
 	}
 
-	// Decode field type if it's an object type
-	if f.IsObject() {
-		fieldType, err := DecodeElement(reader, stream)
-		if err != nil {
-			return err
-		}
-		if utf, ok := fieldType.(*Utf); ok {
-			f.FieldType = utf
-		}
-	}
+	// Decode field type if it's an object type or array type
+	// Field type can be TC_STRING (Utf) or TC_REFERENCE (Reference)
+	// Both Object ('L') and Array ('[') types have field_type
+    if f.IsObject() || f.Type == Array {
+        fieldType, err := DecodeElement(reader, stream)
+        if err != nil {
+            return err
+        }
+        if utf, ok := fieldType.(*Utf); ok {
+            f.FieldType = utf
+        } else if ref, ok := fieldType.(*Reference); ok {
+            // If it's a reference, resolve it
+            if stream != nil {
+                refIndex := ref.Handle - constants.BASE_WIRE_HANDLE
+                if refIndex < uint32(len(stream.References)) {
+                    switch refElem := stream.References[refIndex].(type) {
+                    case *Utf:
+                        f.FieldType = refElem
+                    default:
+                        // Be tolerant: use string representation when reference is not Utf
+                        f.FieldType = NewUtf(stream, refElem.String())
+                    }
+                } else {
+                    return &DecodeError{Message: "invalid reference handle for field type"}
+                }
+            } else {
+                return &DecodeError{Message: "cannot resolve field type reference without stream"}
+            }
+        } else {
+            // Be tolerant: if not Utf/Reference, still capture a readable type string
+            if elem, ok := fieldType.(Element); ok {
+                f.FieldType = NewUtf(stream, elem.String())
+            } else {
+                return &DecodeError{Message: "field type is not a UTF string or Reference"}
+            }
+        }
+    }
 
 	return nil
 }

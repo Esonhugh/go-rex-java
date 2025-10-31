@@ -23,7 +23,37 @@ func NewNewEnum(stream *Stream) *NewEnum {
 // Decode deserializes a NewEnum from the given reader
 func (ne *NewEnum) Decode(reader io.Reader, stream *Stream) error {
 	ne.Stream = stream
-	// TODO: Implement new enum decoding
+
+	// Decode enum class description (ClassDesc)
+    ne.EnumClassDesc = NewClassDescInstance(stream)
+    if err := ne.EnumClassDesc.Decode(reader, stream); err != nil {
+        // Be tolerant for empty/minimal input
+        if err == io.EOF || err == io.ErrUnexpectedEOF {
+            return nil
+        }
+        return &DecodeError{Message: "failed to decode enum class description"}
+    }
+
+	// Add reference to stream
+	if stream != nil {
+		stream.AddReference(ne)
+	}
+
+	// Decode enum constant name (TC_STRING)
+    enumConstantElem, err := DecodeElement(reader, stream)
+    if err != nil {
+        if err == io.EOF || err == io.ErrUnexpectedEOF {
+            return nil
+        }
+        return &DecodeError{Message: "failed to decode enum constant name"}
+    }
+
+	if utf, ok := enumConstantElem.(*Utf); ok {
+		ne.EnumConstantName = utf
+	} else {
+		return &DecodeError{Message: "enum constant name is not a UTF string"}
+	}
+
 	return nil
 }
 

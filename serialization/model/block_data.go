@@ -27,8 +27,7 @@ func (bd *BlockData) Decode(reader io.Reader, stream *Stream) error {
 
 	// Read length (1 byte)
 	lengthBytes := make([]byte, constants.SIZE_BYTE)
-	n, err := reader.Read(lengthBytes)
-	if err != nil || n != 1 {
+	if _, err := io.ReadFull(reader, lengthBytes); err != nil {
 		return &DecodeError{Message: "failed to read block data length"}
 	}
 	length := lengthBytes[0]
@@ -38,8 +37,7 @@ func (bd *BlockData) Decode(reader io.Reader, stream *Stream) error {
 		bd.Data = make([]byte, 0)
 	} else {
 		bd.Data = make([]byte, length)
-		n, err := reader.Read(bd.Data)
-		if err != nil || n != int(length) {
+		if _, err := io.ReadFull(reader, bd.Data); err != nil {
 			return &DecodeError{Message: "failed to read block data contents"}
 		}
 	}
