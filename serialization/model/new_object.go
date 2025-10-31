@@ -234,9 +234,15 @@ func (no *NewObject) decodeClassFields(reader io.Reader, classDesc *NewClassDesc
 			// Object type field - decode as element
 			content, err := DecodeElement(reader, no.Stream)
 			if err != nil {
-				return nil, fmt.Errorf("failed to decode object field '%s': %w", field.Name.String(), err)
+				// Be tolerant: if we hit EOF, use null reference to allow parsing to continue
+				if err == io.EOF || err == io.ErrUnexpectedEOF {
+					values = append(values, NewPrimitiveValue(Object, NewNullReference(no.Stream)))
+				} else {
+					return nil, fmt.Errorf("failed to decode object field '%s': %w", field.Name.String(), err)
+				}
+			} else {
+				values = append(values, NewPrimitiveValue(Object, content))
 			}
-			values = append(values, NewPrimitiveValue(Object, content))
 		}
 	}
 

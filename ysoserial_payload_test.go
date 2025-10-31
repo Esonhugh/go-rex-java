@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"bytes"
 	"testing"
 
 	"github.com/esonhugh/go-rex-java/serialization/model"
@@ -122,6 +123,22 @@ func TestYsoserialPayloadsDecode(t *testing.T) {
 							len(stream.Contents), len(stream.References), len(jsonData))
 					}
 				}
+
+				// try encode back
+				encodedData, err := stream.Encode()
+				if err != nil {
+					t.Errorf("Failed to encode: %v", err)
+					t.FailNow()
+				} else {
+					t.Logf("Successfully encoded: %d bytes", len(encodedData))
+				}
+				if (!bytes.Equal(encodedData, bytesData)) {
+					t.Errorf("Encoded data mismatch")
+					t.FailNow()
+				} else {
+					t.Logf("Successfully encoded and decoded back")
+				}
+
 			}
 		})
 	}

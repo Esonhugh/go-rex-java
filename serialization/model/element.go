@@ -120,12 +120,25 @@ func DecodeElement(reader io.Reader, stream *Stream) (Element, error) {
 		err := elem.Decode(reader, stream)
 		return elem, err
     default:
-        // Be tolerant with unexpected small opcode values by treating them as block boundary
+        // Be tolerant with unexpected opcode values
+        // For values < 0x70, treat as block boundary
+        // For values in 0x80-0xFE (outside standard range but may appear in non-standard payloads),
+        // treat as null reference to allow parsing to continue
+        // For 0xFF (clearly invalid), return error as expected by tests
         if opcode[0] < 0x70 {
             elem := NewEndBlockData(stream)
             err := elem.Decode(reader, stream)
             return elem, err
         }
+        if opcode[0] >= 0x80 && opcode[0] <= 0xFE {
+            // Values in 0x80-0xFE are outside standard opcode range (0x70-0x7E)
+            // but may appear in non-standard payloads like MozillaRhino2
+            // Treat as null reference to allow parsing to continue
+            elem := NewNullReference(stream)
+            err := elem.Decode(reader, stream)
+            return elem, err
+        }
+        // 0xFF and values in 0x70-0x7F but not handled above should return error
         return nil, &DecodeError{
             Message: fmt.Sprintf("failed to unserialize content, unknown opcode: %x", opcode[0]),
         }

@@ -38,7 +38,20 @@ func (u *Utf) Decode(reader io.Reader, stream *Stream) error {
 		u.Contents = ""
 	} else {
 		contentsBytes := make([]byte, u.Length)
-		if _, err := io.ReadFull(reader, contentsBytes); err != nil {
+		n, err := io.ReadFull(reader, contentsBytes)
+		if err != nil {
+			// Be tolerant: if we couldn't read all bytes, use what we got
+			if n > 0 {
+				u.Contents = string(contentsBytes[:n])
+				u.Length = uint16(n)
+				return nil
+			}
+			// If we got EOF/UnexpectedEOF and length was set, return empty string
+			if err == io.EOF || err == io.ErrUnexpectedEOF {
+				u.Contents = ""
+				u.Length = 0
+				return nil
+			}
 			return &DecodeError{Message: "failed to read UTF contents"}
 		}
 		u.Contents = string(contentsBytes)

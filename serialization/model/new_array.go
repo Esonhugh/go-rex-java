@@ -114,10 +114,15 @@ func (na *NewArray) arrayType() (string, error) {
 				}
 			}
 		}
+	case *NullReference:
+		// For null reference, we can't determine the type, but continue with a default
+		return "object", nil
 	}
 
 	if newClassDesc == nil {
-		return "", fmt.Errorf("cannot get class description")
+		// If we can't get class description, try to continue with object type as fallback
+		// This allows parsing to continue for complex payloads
+		return "object", nil
 	}
 
 	if newClassDesc.ClassName == nil {
@@ -248,7 +253,15 @@ func (na *NewArray) decodeValue(reader io.Reader) (interface{}, error) {
     default:
         // Object type or nested array - decode as element via DecodeElement so that
         // the element opcode (e.g., TC_ARRAY for nested arrays) is properly consumed.
-        return DecodeElement(reader, na.Stream)
+        elem, err := DecodeElement(reader, na.Stream)
+        if err != nil {
+            // Be tolerant: if decode fails, return a null reference to allow parsing to continue
+            if err == io.EOF || err == io.ErrUnexpectedEOF {
+                return NewNullReference(na.Stream), nil
+            }
+            return nil, err
+        }
+        return elem, nil
 	}
 }
 

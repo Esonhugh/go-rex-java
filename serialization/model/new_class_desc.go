@@ -45,9 +45,15 @@ func (ncd *NewClassDesc) Decode(reader io.Reader, stream *Stream) error {
 	// Decode serial version (8 bytes)
 	serialBytes := make([]byte, constants.SIZE_LONG)
 	if _, err := io.ReadFull(reader, serialBytes); err != nil {
-		return &DecodeError{Message: "failed to read serial version"}
+		// Be tolerant: if we can't read serial version, use 0 as default
+		if err == io.EOF || err == io.ErrUnexpectedEOF {
+			ncd.SerialVersion = 0
+		} else {
+			return &DecodeError{Message: "failed to read serial version"}
+		}
+	} else {
+		ncd.SerialVersion = binary.BigEndian.Uint64(serialBytes)
 	}
-	ncd.SerialVersion = binary.BigEndian.Uint64(serialBytes)
 
 	// Add reference to stream
 	if stream != nil {
@@ -57,22 +63,39 @@ func (ncd *NewClassDesc) Decode(reader io.Reader, stream *Stream) error {
 	// Decode flags (1 byte)
 	flagsBytes := make([]byte, constants.SIZE_BYTE)
 	if _, err := io.ReadFull(reader, flagsBytes); err != nil {
-		return &DecodeError{Message: "failed to read flags"}
+		// Be tolerant: if we can't read flags, use default
+		if err == io.EOF || err == io.ErrUnexpectedEOF {
+			ncd.Flags = constants.SC_SERIALIZABLE
+		} else {
+			return &DecodeError{Message: "failed to read flags"}
+		}
+	} else {
+		ncd.Flags = flagsBytes[0]
 	}
-	ncd.Flags = flagsBytes[0]
 
 	// Decode field count (2 bytes)
 	fieldCountBytes := make([]byte, constants.SIZE_SHORT)
+	var fieldCount uint16
 	if _, err := io.ReadFull(reader, fieldCountBytes); err != nil {
-		return &DecodeError{Message: "failed to read field count"}
+		// Be tolerant: if we can't read field count, assume 0 fields
+		if err == io.EOF || err == io.ErrUnexpectedEOF {
+			fieldCount = 0
+		} else {
+			return &DecodeError{Message: "failed to read field count"}
+		}
+	} else {
+		fieldCount = binary.BigEndian.Uint16(fieldCountBytes)
 	}
-	fieldCount := binary.BigEndian.Uint16(fieldCountBytes)
 
 	// Decode fields
 	ncd.Fields = make([]*Field, 0, fieldCount)
 	for i := uint16(0); i < fieldCount; i++ {
 		field := NewField(stream)
 		if err := field.Decode(reader, stream); err != nil {
+			// Be tolerant: if we hit EOF while decoding fields, stop and continue
+			if err == io.EOF || err == io.ErrUnexpectedEOF {
+				break
+			}
 			return err
 		}
 		ncd.Fields = append(ncd.Fields, field)

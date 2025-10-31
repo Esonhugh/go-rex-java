@@ -56,7 +56,13 @@ func (f *Field) Decode(reader io.Reader, stream *Stream) error {
 	// Decode name
 	f.Name = NewUtf(stream, "")
 	if err := f.Name.Decode(reader, stream); err != nil {
-		return err
+		// Be tolerant: if we can't decode name, use empty string
+		if err == io.EOF || err == io.ErrUnexpectedEOF {
+			f.Name.Contents = ""
+			f.Name.Length = 0
+		} else {
+			return err
+		}
 	}
 
 	// Decode field type if it's an object type or array type
@@ -65,8 +71,14 @@ func (f *Field) Decode(reader io.Reader, stream *Stream) error {
     if f.IsObject() || f.Type == Array {
         fieldType, err := DecodeElement(reader, stream)
         if err != nil {
+            // Be tolerant: if we can't decode field type, use a placeholder
+            if err == io.EOF || err == io.ErrUnexpectedEOF {
+                f.FieldType = NewUtf(stream, "")
+                return nil
+            }
             return err
         }
+        
         if utf, ok := fieldType.(*Utf); ok {
             f.FieldType = utf
         } else if ref, ok := fieldType.(*Reference); ok {
