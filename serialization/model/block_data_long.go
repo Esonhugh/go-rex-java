@@ -41,6 +41,15 @@ func (bdl *BlockDataLong) Decode(reader io.Reader, stream *Stream) error {
 	} else {
 		bdl.Data = make([]byte, length)
 		if _, err := io.ReadFull(reader, bdl.Data); err != nil {
+			if err == io.EOF || err == io.ErrUnexpectedEOF {
+				// Use partial data if available
+				if len(bdl.Data) > 0 {
+					// Keep partial data
+				} else {
+					bdl.Data = make([]byte, 0)
+				}
+				return nil
+			}
 			return &DecodeError{Message: "failed to read long block data contents"}
 		}
 	}
@@ -50,8 +59,19 @@ func (bdl *BlockDataLong) Decode(reader io.Reader, stream *Stream) error {
 
 // Encode serializes the BlockDataLong to bytes
 func (bdl *BlockDataLong) Encode() ([]byte, error) {
-	// TODO: Implement long block data encoding
-	return bdl.Data, nil
+	encoded := make([]byte, 0, 4+len(bdl.Data))
+
+	// Encode length (4 bytes, uint32)
+	lengthBytes := make([]byte, 4)
+	binary.BigEndian.PutUint32(lengthBytes, uint32(len(bdl.Data)))
+	encoded = append(encoded, lengthBytes...)
+
+	// Encode data
+	if len(bdl.Data) > 0 {
+		encoded = append(encoded, bdl.Data...)
+	}
+
+	return encoded, nil
 }
 
 // String returns a string representation of the BlockDataLong

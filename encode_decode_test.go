@@ -43,8 +43,8 @@ func TestEncodeDecodeJavaFile(t *testing.T) {
 	// 创建 java.io.File 类描述
 	fileClass := builder.NewClass(&serialization.ClassOptions{
 		Name:   "java.io.File",
-		Serial: 0x3010774b9b8c4f5e, // java.io.File 的 serialVersionUID
-		Flags:  0x02,               // SC_SERIALIZABLE
+		Serial: 0x042da4450e0de4ff, // java.io.File 的实际 serialVersionUID (from abc.ser)
+		Flags:  0x03,               // SC_SERIALIZABLE (from abc.ser: 0x03)
 		Fields: []serialization.FieldData{
 			{Type: model.Object, Name: "path", FieldType: "Ljava/lang/String;"},
 		},
@@ -130,6 +130,10 @@ func TestEncodeDecodeJavaFile(t *testing.T) {
 		}
 	}
 
+	if !bytes.Equal(encodedData, originalData) {
+		t.Errorf("Encoded data does not match original data")
+		t.Failed()
+	}
 	fmt.Println("✅ Encode/Decode test passed!")
 }
 

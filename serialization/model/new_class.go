@@ -1,6 +1,7 @@
 package model
 
 import (
+	"fmt"
 	"io"
 )
 
@@ -23,16 +24,10 @@ func (nc *NewClass) Decode(reader io.Reader, stream *Stream) error {
 	nc.Stream = stream
 
 	// TC_CLASS contains a ClassDesc
-    nc.ClassDescription = NewClassDescInstance(stream)
-    if err := nc.ClassDescription.Decode(reader, stream); err != nil {
-        // Be tolerant for empty/minimal input
-        if err == io.EOF || err == io.ErrUnexpectedEOF {
-            // Ensure String() returns "NewClass" in minimal case
-            nc.ClassDescription = nil
-            return nil
-        }
-        return &DecodeError{Message: "failed to decode class description in NewClass"}
-    }
+	nc.ClassDescription = NewClassDescInstance(stream)
+	if err := nc.ClassDescription.Decode(reader, stream); err != nil {
+		return fmt.Errorf("failed to decode class description in NewClass: %w", err)
+	}
 
 	// Add reference to stream
 	if stream != nil {
@@ -44,8 +39,12 @@ func (nc *NewClass) Decode(reader io.Reader, stream *Stream) error {
 
 // Encode serializes the NewClass to bytes
 func (nc *NewClass) Encode() ([]byte, error) {
-	// TODO: Implement new class encoding
-	return []byte{}, nil
+	if nc.ClassDescription == nil {
+		return nil, &EncodeError{Message: "class description is nil"}
+	}
+
+	// Encode class description
+	return nc.ClassDescription.Encode()
 }
 
 // String returns a string representation of the NewClass

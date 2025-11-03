@@ -19,7 +19,7 @@ func TestDecodeElement(t *testing.T) {
 		{"TC_OBJECT", constants.TC_OBJECT, "NewObject", true},          // Needs class description
 		{"TC_STRING", constants.TC_STRING, "Utf", true},                // Needs length + content
 		{"TC_ARRAY", constants.TC_ARRAY, "NewArray", false},            // Currently returns success
-		{"TC_CLASS", constants.TC_CLASS, "NewClass", false},            // Currently returns success
+		{"TC_CLASS", constants.TC_CLASS, "NewClass", true},            // Needs class description
 		{"TC_BLOCKDATA", constants.TC_BLOCKDATA, "BlockData", true},    // Needs length + data
 		{"TC_ENDBLOCKDATA", constants.TC_ENDBLOCKDATA, "EndBlockData", false},
 		{"TC_RESET", constants.TC_RESET, "Reset", false},
@@ -91,14 +91,30 @@ func TestEncodeElement(t *testing.T) {
 		{"NewClassDesc", NewNewClassDesc(nil), constants.TC_CLASSDESC, false},
 		{"NewObject", NewNewObject(nil), constants.TC_OBJECT, true}, // Needs class description
 		{"Utf", NewUtf(nil, "test"), constants.TC_STRING, false},
-		{"NewArray", NewNewArray(nil), constants.TC_ARRAY, false},
-		{"NewClass", NewNewClass(nil), constants.TC_CLASS, false},
+		{"NewArray", func() Element {
+			arr := NewNewArray(nil)
+			arr.ArrayDescription = NewClassDescInstance(nil)
+			arr.ArrayDescription.Description = NewNullReference(nil)
+			return arr
+		}(), constants.TC_ARRAY, false},
+		{"NewClass", func() Element {
+			nc := NewNewClass(nil)
+			nc.ClassDescription = NewClassDescInstance(nil)
+			nc.ClassDescription.Description = NewNullReference(nil)
+			return nc
+		}(), constants.TC_CLASS, false},
 		{"BlockData", NewBlockData(nil), constants.TC_BLOCKDATA, false},
 		{"EndBlockData", NewEndBlockData(nil), constants.TC_ENDBLOCKDATA, false},
 		{"Reset", NewReset(nil), constants.TC_RESET, false},
 		{"BlockDataLong", NewBlockDataLong(nil), constants.TC_BLOCKDATALONG, false},
 		{"LongUtf", NewLongUtf(nil), constants.TC_LONGSTRING, false},
-		{"ProxyClassDesc", NewProxyClassDesc(nil), constants.TC_PROXYCLASSDESC, false},
+		{"ProxyClassDesc", func() Element {
+			pcd := NewProxyClassDesc(nil)
+			pcd.ClassAnnotation = NewAnnotation(nil)
+			pcd.SuperClass = NewClassDescInstance(nil)
+			pcd.SuperClass.Description = NewNullReference(nil)
+			return pcd
+		}(), constants.TC_PROXYCLASSDESC, false},
 		{"NewEnum", NewNewEnum(nil), constants.TC_ENUM, false},
 	}
 

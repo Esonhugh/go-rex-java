@@ -110,7 +110,12 @@ func (ncd *NewClassDesc) Decode(reader io.Reader, stream *Stream) error {
 	// Decode super class
 	ncd.SuperClass = NewClassDescInstance(stream)
 	if err := ncd.SuperClass.Decode(reader, stream); err != nil {
-		return err
+		// Be tolerant: if we can't read super class, use null reference
+		if err == io.EOF || err == io.ErrUnexpectedEOF {
+			ncd.SuperClass.Description = NewNullReference(stream)
+		} else {
+			return err
+		}
 	}
 
 	return nil

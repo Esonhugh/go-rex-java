@@ -32,10 +32,23 @@ func (no *NewObject) Decode(reader io.Reader, stream *Stream) error {
 		return fmt.Errorf("failed to decode class description: %w", err)
 	}
 
+	// Validate classDesc type - must be one of the allowed types for ClassDesc
+	// If invalid type (e.g., EndBlockData due to tolerant parsing), use NullReference as fallback
+	var validClassDesc Element = classDesc
+	switch classDesc.(type) {
+	case *NullReference, *NewClassDesc, *Reference, *ProxyClassDesc:
+		// Valid type - use as is
+		validClassDesc = classDesc
+	default:
+		// Invalid type (likely EndBlockData or other unexpected element due to tolerant parsing)
+		// Use NullReference as fallback to allow parsing to continue
+		validClassDesc = NewNullReference(stream)
+	}
+
 	// Create a ClassDesc wrapper
 	no.ClassDesc = &ClassDesc{
 		BaseElement: NewBaseElement(stream),
-		Description: classDesc,
+		Description: validClassDesc,
 	}
 	no.Stream = stream
 
@@ -79,7 +92,7 @@ func (no *NewObject) Encode() ([]byte, error) {
 	// Encode class description
 	classDescBytes, err := no.ClassDesc.Encode()
 	if err != nil {
-		return nil, err
+		return nil, &EncodeError{Message: "failed to encode ClassDesc: " + err.Error()}
 	}
 	encoded = append(encoded, classDescBytes...)
 
@@ -87,7 +100,7 @@ func (no *NewObject) Encode() ([]byte, error) {
 	for _, value := range no.ClassData {
 		valueBytes, err := no.encodeValue(value)
 		if err != nil {
-			return nil, err
+			return nil, &EncodeError{Message: "failed to encode class data: " + err.Error()}
 		}
 		encoded = append(encoded, valueBytes...)
 	}

@@ -71,6 +71,7 @@ func (s *Stream) Encode() ([]byte, error) {
 	encoded = append(encoded, versionBytes...)
 
 	// Encode contents
+	// Simply encode each content element in order (like Ruby implementation)
 	for _, content := range s.Contents {
 		contentBytes, err := EncodeElement(content)
 		if err != nil {
@@ -80,6 +81,38 @@ func (s *Stream) Encode() ([]byte, error) {
 	}
 
 	return encoded, nil
+}
+
+// findReferenceIndex finds the index of an element in the references array
+func (s *Stream) findReferenceIndex(elem Element) int {
+	for i, ref := range s.References {
+		// Use pointer comparison for exact match
+		if ref == elem {
+			return i
+		}
+		// For strings, also compare by content
+		if utf, ok := elem.(*Utf); ok {
+			if refUtf, ok := ref.(*Utf); ok && utf.Contents == refUtf.Contents {
+				return i
+			}
+		}
+	}
+	return -1
+}
+
+// isInReferences checks if an element is in the references array
+func (s *Stream) isInReferences(elem Element) bool {
+	return s.findReferenceIndex(elem) >= 0
+}
+
+// shouldAddReference checks if an element type should be added to references when encoded
+func shouldAddReference(elem Element) bool {
+	switch elem.(type) {
+	case *Utf, *LongUtf, *NewObject, *NewArray, *NewClass, *NewClassDesc, *ProxyClassDesc, *NewEnum:
+		return true
+	default:
+		return false
+	}
 }
 
 // AddReference adds an element to the references array

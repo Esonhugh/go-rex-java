@@ -76,8 +76,34 @@ func (na *NewArray) Decode(reader io.Reader, stream *Stream) error {
 
 // Encode serializes the NewArray to bytes
 func (na *NewArray) Encode() ([]byte, error) {
-	// TODO: Implement new array encoding
-	return []byte{}, nil
+	if na.ArrayDescription == nil {
+		return nil, &EncodeError{Message: "array description is nil"}
+	}
+
+	encoded := make([]byte, 0, 256)
+
+	// Encode array description
+	descBytes, err := na.ArrayDescription.Encode()
+	if err != nil {
+		return nil, err
+	}
+	encoded = append(encoded, descBytes...)
+
+	// Encode array length (4 bytes, int32)
+	lengthBytes := make([]byte, constants.SIZE_INT)
+	binary.BigEndian.PutUint32(lengthBytes, uint32(len(na.Values)))
+	encoded = append(encoded, lengthBytes...)
+
+	// Encode array values
+	for _, value := range na.Values {
+		valueBytes, err := na.encodeValue(value)
+		if err != nil {
+			return nil, err
+		}
+		encoded = append(encoded, valueBytes...)
+	}
+
+	return encoded, nil
 }
 
 // String returns a string representation of the NewArray
@@ -261,8 +287,68 @@ func (na *NewArray) decodeValue(reader io.Reader) (interface{}, error) {
             }
             return nil, err
         }
-        return elem, nil
+	return elem, nil
 	}
+}
+
+// encodeValue encodes a single array element based on the array type
+func (na *NewArray) encodeValue(value interface{}) ([]byte, error) {
+	switch na.Type {
+	case "byte":
+		if val, ok := value.(int8); ok {
+			return []byte{byte(val)}, nil
+		}
+	case "char":
+		if val, ok := value.(int16); ok {
+			bytes := make([]byte, 2)
+			binary.BigEndian.PutUint16(bytes, uint16(val))
+			return bytes, nil
+		}
+	case "double":
+		if val, ok := value.(uint64); ok {
+			bytes := make([]byte, 8)
+			binary.BigEndian.PutUint64(bytes, val)
+			return bytes, nil
+		}
+	case "float":
+		if val, ok := value.(uint32); ok {
+			bytes := make([]byte, 4)
+			binary.BigEndian.PutUint32(bytes, val)
+			return bytes, nil
+		}
+	case "int":
+		if val, ok := value.(int32); ok {
+			bytes := make([]byte, 4)
+			binary.BigEndian.PutUint32(bytes, uint32(val))
+			return bytes, nil
+		}
+	case "long":
+		if val, ok := value.(int64); ok {
+			bytes := make([]byte, 8)
+			binary.BigEndian.PutUint64(bytes, uint64(val))
+			return bytes, nil
+		}
+	case "short":
+		if val, ok := value.(int16); ok {
+			bytes := make([]byte, 2)
+			binary.BigEndian.PutUint16(bytes, uint16(val))
+			return bytes, nil
+		}
+	case "boolean":
+		if val, ok := value.(bool); ok {
+			if val {
+				return []byte{1}, nil
+			}
+			return []byte{0}, nil
+		}
+	default:
+		// Object type or nested array - encode as element via EncodeElement
+		if elem, ok := value.(Element); ok {
+			return EncodeElement(elem)
+		}
+	}
+
+	return nil, &EncodeError{Message: "failed to encode array value"}
 }
 
 // marshalNewArray marshals a NewArray to JSON-friendly format

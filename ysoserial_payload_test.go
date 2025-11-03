@@ -1,12 +1,12 @@
 package rexjava
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
-	"bytes"
 	"testing"
 
 	"github.com/esonhugh/go-rex-java/serialization/model"
@@ -68,7 +68,7 @@ func TestYsoserialPayloadsDecode(t *testing.T) {
 	// Test base64 decoding for all payloads
 	testCount := 0
 	successCount := 0
-	maxTests := 5
+	maxTests := 100
 
 	for payloadName, payloadInfo := range payloads.None {
 		// Skip unsupported payloads
@@ -124,16 +124,17 @@ func TestYsoserialPayloadsDecode(t *testing.T) {
 					}
 				}
 
+				jd, _ := json.MarshalIndent(stream, "", "  ")
 				// try encode back
 				encodedData, err := stream.Encode()
 				if err != nil {
-					t.Errorf("Failed to encode: %v", err)
+					// 	t.Errorf("Failed to encode: %v, json: %v", err, string(jd))
 					t.FailNow()
 				} else {
 					t.Logf("Successfully encoded: %d bytes", len(encodedData))
 				}
-				if (!bytes.Equal(encodedData, bytesData)) {
-					t.Errorf("Encoded data mismatch")
+				if !bytes.Equal(encodedData, bytesData) {
+					t.Errorf("Encoded data mismatch, json data: %v", string(jd))
 					t.FailNow()
 				} else {
 					t.Logf("Successfully encoded and decoded back")
