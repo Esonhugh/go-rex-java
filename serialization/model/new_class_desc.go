@@ -4,8 +4,9 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
-	"github.com/esonhugh/go-rex-java/constants"
 	"io"
+
+	"github.com/esonhugh/go-rex-java/constants"
 )
 
 // NewClassDesc represents a new class description in Java serialization

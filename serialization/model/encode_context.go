@@ -69,9 +69,30 @@ func (ctx *EncodeContext) registerElement(element Element) {
 		return
 	}
 
-	// Note: We don't pre-register elements from stream references
-	// References should be determined dynamically during encoding
-	// This ensures we only use references for elements that are actually repeated
+	if ctx.streamReferences != nil {
+		// Check if this element was originally in the stream references
+		// If so, use its original handle to maintain compatibility
+		for i, ref := range ctx.streamReferences {
+			if ref == element {
+				// Found exact match, use original handle
+				ctx.encodedElements[element] = i
+				ctx.encodedOnceHandle[i] = false
+				return
+			}
+		}
+
+		// For strings, also check content-based matching
+		if utf, ok := element.(*Utf); ok {
+			for i, ref := range ctx.streamReferences {
+				if refUtf, ok := ref.(*Utf); ok && refUtf.Contents == utf.Contents {
+					// Found content match, use original handle
+					ctx.encodedElements[element] = i
+					ctx.encodedOnceHandle[i] = false
+					return
+				}
+			}
+		}
+	}
 
 	handle := ctx.nextHandle
 	ctx.encodedElements[element] = handle
