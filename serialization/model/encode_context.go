@@ -25,7 +25,7 @@ func NewEncodeContext(stream *Stream) *EncodeContext {
 	ctx := &EncodeContext{
 		encodedElements:   make(map[Element]int),
 		encodedOnceHandle: make(map[int]bool),
-		streamReferences:  nil,
+		streamReferences:  stream.References,
 		nextHandle:        0,
 	}
 
@@ -69,18 +69,9 @@ func (ctx *EncodeContext) registerElement(element Element) {
 		return
 	}
 
-	if ctx.streamReferences != nil {
-		// Only use exact pointer matching - don't do content-based matching
-		// This ensures we only use references for elements that were originally the same object
-		for i, ref := range ctx.streamReferences {
-			if ref == element {
-				ctx.encodedElements[element] = i
-				// Don't mark as encoded yet - wait for second encounter
-				ctx.encodedOnceHandle[i] = false
-				return
-			}
-		}
-	}
+	// Note: We don't pre-register elements from stream references
+	// References should be determined dynamically during encoding
+	// This ensures we only use references for elements that are actually repeated
 
 	handle := ctx.nextHandle
 	ctx.encodedElements[element] = handle
@@ -98,9 +89,9 @@ func EncodeElementWithContext(element Element, ctx *EncodeContext) ([]byte, erro
 
 	if ctx != nil {
 		if handle, exists := ctx.encodedElements[element]; exists {
-			// Use reference if this element has been encoded multiple times in this session,
-			// or if it's from the original stream references (to maintain compatibility)
-			if ctx.encodedOnceHandle[handle] || (ctx.streamReferences != nil && handle < len(ctx.streamReferences)) {
+			// Use reference only if this element has been encoded multiple times in this session
+			// We need to rebuild reference decisions from scratch for compatibility
+			if ctx.encodedOnceHandle[handle] {
 				handleValue := uint32(handle) + constants.BASE_WIRE_HANDLE
 				refElem := NewReference(nil, handleValue)
 				return EncodeElement(refElem)
