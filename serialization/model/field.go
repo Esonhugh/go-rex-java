@@ -68,52 +68,67 @@ func (f *Field) Decode(reader io.Reader, stream *Stream) error {
 	// Decode field type if it's an object type or array type
 	// Field type can be TC_STRING (Utf) or TC_REFERENCE (Reference)
 	// Both Object ('L') and Array ('[') types have field_type
-    if f.IsObject() || f.Type == Array {
-        fieldType, err := DecodeElement(reader, stream)
-        if err != nil {
-            // Be tolerant: if we can't decode field type, use a placeholder
-            if err == io.EOF || err == io.ErrUnexpectedEOF {
-                f.FieldType = NewUtf(stream, "")
-                return nil
-            }
-            return err
-        }
-        
-        if utf, ok := fieldType.(*Utf); ok {
-            f.FieldType = utf
-        } else if ref, ok := fieldType.(*Reference); ok {
-            // If it's a reference, resolve it
-            if stream != nil {
-                refIndex := ref.Handle - constants.BASE_WIRE_HANDLE
-                if refIndex < uint32(len(stream.References)) {
-                    switch refElem := stream.References[refIndex].(type) {
-                    case *Utf:
-                        f.FieldType = refElem
-                    default:
-                        // Be tolerant: use string representation when reference is not Utf
-                        f.FieldType = NewUtf(stream, refElem.String())
-                    }
-                } else {
-                    return &DecodeError{Message: "invalid reference handle for field type"}
-                }
-            } else {
-                return &DecodeError{Message: "cannot resolve field type reference without stream"}
-            }
-        } else {
-            // Be tolerant: if not Utf/Reference, still capture a readable type string
-            if elem, ok := fieldType.(Element); ok {
-                f.FieldType = NewUtf(stream, elem.String())
-            } else {
-                return &DecodeError{Message: "field type is not a UTF string or Reference"}
-            }
-        }
-    }
+	if f.IsObject() || f.Type == Array {
+		fieldType, err := DecodeElement(reader, stream)
+		if err != nil {
+			// Be tolerant: if we can't decode field type, use a placeholder
+			if err == io.EOF || err == io.ErrUnexpectedEOF {
+				f.FieldType = NewUtf(stream, "")
+				return nil
+			}
+			return err
+		}
+
+		if utf, ok := fieldType.(*Utf); ok {
+			// Check if this Utf already exists in stream references (by content)
+			// If so, use the one from references to ensure correct reference matching
+			if stream != nil {
+				for _, ref := range stream.References {
+					if refUtf, ok := ref.(*Utf); ok && utf.Contents == refUtf.Contents {
+						f.FieldType = refUtf // Use the one from references
+						return nil
+					}
+				}
+			}
+			f.FieldType = utf
+		} else if ref, ok := fieldType.(*Reference); ok {
+			// If it's a reference, resolve it
+			if stream != nil {
+				refIndex := ref.Handle - constants.BASE_WIRE_HANDLE
+				if refIndex < uint32(len(stream.References)) {
+					switch refElem := stream.References[refIndex].(type) {
+					case *Utf:
+						f.FieldType = refElem
+					default:
+						// Be tolerant: use string representation when reference is not Utf
+						f.FieldType = NewUtf(stream, refElem.String())
+					}
+				} else {
+					return &DecodeError{Message: "invalid reference handle for field type"}
+				}
+			} else {
+				return &DecodeError{Message: "cannot resolve field type reference without stream"}
+			}
+		} else {
+			// Be tolerant: if not Utf/Reference, still capture a readable type string
+			if elem, ok := fieldType.(Element); ok {
+				f.FieldType = NewUtf(stream, elem.String())
+			} else {
+				return &DecodeError{Message: "field type is not a UTF string or Reference"}
+			}
+		}
+	}
 
 	return nil
 }
 
 // Encode serializes the Field to bytes
 func (f *Field) Encode() ([]byte, error) {
+	return f.EncodeWithContext(nil)
+}
+
+// EncodeWithContext serializes the Field with a shared encode context
+func (f *Field) EncodeWithContext(ctx *EncodeContext) ([]byte, error) {
 	if f.Name == nil {
 		return nil, &EncodeError{Message: "field name is nil"}
 	}
@@ -148,12 +163,20 @@ func (f *Field) Encode() ([]byte, error) {
 
 	// Encode field type if it's an object type
 	if f.IsObject() && f.FieldType != nil {
-		// Field type should be encoded as a TC_STRING element
-		fieldTypeBytes, err := EncodeElement(f.FieldType)
-		if err != nil {
-			return nil, err
+		// Use EncodeElementWithContext to check if fieldType should use TC_REFERENCE
+		if ctx != nil {
+			fieldTypeBytes, err := EncodeElementWithContext(f.FieldType, ctx)
+			if err != nil {
+				return nil, err
+			}
+			encoded = append(encoded, fieldTypeBytes...)
+		} else {
+			fieldTypeBytes, err := EncodeElementWithReferences(f.FieldType, f.Stream)
+			if err != nil {
+				return nil, err
+			}
+			encoded = append(encoded, fieldTypeBytes...)
 		}
-		encoded = append(encoded, fieldTypeBytes...)
 	}
 
 	return encoded, nil

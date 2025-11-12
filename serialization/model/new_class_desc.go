@@ -123,6 +123,11 @@ func (ncd *NewClassDesc) Decode(reader io.Reader, stream *Stream) error {
 
 // Encode serializes the NewClassDesc to bytes
 func (ncd *NewClassDesc) Encode() ([]byte, error) {
+	return ncd.EncodeWithContext(nil)
+}
+
+// EncodeWithContext serializes the NewClassDesc with a shared encode context
+func (ncd *NewClassDesc) EncodeWithContext(ctx *EncodeContext) ([]byte, error) {
 	encoded := make([]byte, 0, 1024)
 
 	// Encode class name (direct UTF, not a TC_STRING element)
@@ -152,7 +157,7 @@ func (ncd *NewClassDesc) Encode() ([]byte, error) {
 
 	// Encode fields
 	for _, field := range ncd.Fields {
-		fieldBytes, err := field.Encode()
+		fieldBytes, err := field.EncodeWithContext(ctx)
 		if err != nil {
 			return nil, err
 		}
@@ -161,16 +166,16 @@ func (ncd *NewClassDesc) Encode() ([]byte, error) {
 
 	// Encode class annotation
 	if ncd.ClassAnnotation != nil {
-		annotationBytes, err := ncd.ClassAnnotation.Encode()
+		annotationBytes, err := ncd.ClassAnnotation.EncodeWithContext(ctx)
 		if err != nil {
 			return nil, err
 		}
 		encoded = append(encoded, annotationBytes...)
 	}
 
-	// Encode super class
+	// Encode super class using ClassDesc.EncodeWithContext
 	if ncd.SuperClass != nil {
-		superClassBytes, err := ncd.SuperClass.Encode()
+		superClassBytes, err := ncd.SuperClass.EncodeWithContext(ctx)
 		if err != nil {
 			return nil, err
 		}

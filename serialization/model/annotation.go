@@ -37,15 +37,29 @@ func (a *Annotation) Decode(reader io.Reader, stream *Stream) error {
 
 // Encode serializes the Annotation to bytes
 func (a *Annotation) Encode() ([]byte, error) {
+	return a.EncodeWithContext(nil)
+}
+
+// EncodeWithContext serializes the Annotation with a shared encode context
+func (a *Annotation) EncodeWithContext(ctx *EncodeContext) ([]byte, error) {
 	encoded := make([]byte, 0, 1024)
 
 	// Encode all contents
 	for _, element := range a.Contents {
-		elementBytes, err := EncodeElement(element)
-		if err != nil {
-			return nil, err
+		// Use EncodeElementWithContext to check if element should use TC_REFERENCE
+		if ctx != nil {
+			elementBytes, err := EncodeElementWithContext(element, ctx)
+			if err != nil {
+				return nil, err
+			}
+			encoded = append(encoded, elementBytes...)
+		} else {
+			elementBytes, err := EncodeElementWithReferences(element, a.Stream)
+			if err != nil {
+				return nil, err
+			}
+			encoded = append(encoded, elementBytes...)
 		}
-		encoded = append(encoded, elementBytes...)
 	}
 
 	return encoded, nil

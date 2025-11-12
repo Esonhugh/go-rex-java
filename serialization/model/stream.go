@@ -70,14 +70,59 @@ func (s *Stream) Encode() ([]byte, error) {
 	binary.BigEndian.PutUint16(versionBytes, s.Version)
 	encoded = append(encoded, versionBytes...)
 
+	// Create encode context to track references during encoding
+	ctx := NewEncodeContext(s)
+
 	// Encode contents
-	// Simply encode each content element in order (like Ruby implementation)
+	// Note: Top-level contents should always be encoded as new elements, not references
+	// References are only used for nested elements within objects/arrays
 	for _, content := range s.Contents {
-		contentBytes, err := EncodeElement(content)
+		// For top-level contents, encode directly without returning references
+		// but still use the shared encode context for nested elements
+		var contentBytes []byte
+		var err error
+
+		// Check if content should use EncodeWithContext
+		switch e := content.(type) {
+		case *NewObject:
+			contentBytes, err = e.EncodeWithContext(ctx)
+			if err == nil {
+				// Add opcode
+				result := make([]byte, 1+len(contentBytes))
+				result[0] = constants.TC_OBJECT
+				copy(result[1:], contentBytes)
+				contentBytes = result
+			}
+		case *NewArray:
+			contentBytes, err = e.EncodeWithContext(ctx)
+			if err == nil {
+				// Add opcode
+				result := make([]byte, 1+len(contentBytes))
+				result[0] = constants.TC_ARRAY
+				copy(result[1:], contentBytes)
+				contentBytes = result
+			}
+		case *NewClassDesc:
+			contentBytes, err = e.EncodeWithContext(ctx)
+			if err == nil {
+				// Add opcode
+				result := make([]byte, 1+len(contentBytes))
+				result[0] = constants.TC_CLASSDESC
+				copy(result[1:], contentBytes)
+				contentBytes = result
+			}
+		default:
+			// For other elements, use regular EncodeElement
+			contentBytes, err = EncodeElement(content)
+		}
+
 		if err != nil {
 			return nil, err
 		}
 		encoded = append(encoded, contentBytes...)
+
+		// Register top-level content so nested elements can reference it
+		ctx.registerElement(content)
 	}
 
 	return encoded, nil
@@ -85,19 +130,7 @@ func (s *Stream) Encode() ([]byte, error) {
 
 // findReferenceIndex finds the index of an element in the references array
 func (s *Stream) findReferenceIndex(elem Element) int {
-	for i, ref := range s.References {
-		// Use pointer comparison for exact match
-		if ref == elem {
-			return i
-		}
-		// For strings, also compare by content
-		if utf, ok := elem.(*Utf); ok {
-			if refUtf, ok := ref.(*Utf); ok && utf.Contents == refUtf.Contents {
-				return i
-			}
-		}
-	}
-	return -1
+	return findReferenceIndexByContent(elem, s.References)
 }
 
 // isInReferences checks if an element is in the references array
@@ -139,15 +172,15 @@ func (s *Stream) String() string {
 
 // MarshalJSON marshals the Stream to JSON
 func (s *Stream) MarshalJSON() ([]byte, error) {
-    // Keep JSON shallow to avoid deep recursion/stack overflow on complex graphs
-    result := map[string]interface{}{
-        "type":            "Stream",
-        "magic":           fmt.Sprintf("0x%x", s.Magic),
-        "version":         s.Version,
-        "contents_count":  len(s.Contents),
-        "references_count": len(s.References),
-        "references":       marshalReferences(s.References),
-    }
+	// Keep JSON shallow to avoid deep recursion/stack overflow on complex graphs
+	result := map[string]interface{}{
+		"type":             "Stream",
+		"magic":            fmt.Sprintf("0x%x", s.Magic),
+		"version":          s.Version,
+		"contents_count":   len(s.Contents),
+		"references_count": len(s.References),
+		"references":       marshalReferences(s.References),
+	}
 	return json.Marshal(result)
 }
 
@@ -204,14 +237,14 @@ func marshalElements(elements []Element) []interface{} {
 
 // marshalReferences marshals references with their handles
 func marshalReferences(references []Element) []interface{} {
-    // To avoid deep recursion/cycles when marshaling complex graphs, only expose handles
-    // rather than recursively expanding referenced objects.
-    result := make([]interface{}, 0, len(references))
-    for i := range references {
-        handle := fmt.Sprintf("0x%x", i+int(constants.BASE_WIRE_HANDLE))
-        result = append(result, handle)
-    }
-    return result
+	// To avoid deep recursion/cycles when marshaling complex graphs, only expose handles
+	// rather than recursively expanding referenced objects.
+	result := make([]interface{}, 0, len(references))
+	for i := range references {
+		handle := fmt.Sprintf("0x%x", i+int(constants.BASE_WIRE_HANDLE))
+		result = append(result, handle)
+	}
+	return result
 }
 
 // marshalElement marshals a single element to JSON-friendly format

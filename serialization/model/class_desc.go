@@ -2,6 +2,7 @@ package model
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 )
 
@@ -39,6 +40,11 @@ func (cd *ClassDesc) Decode(reader io.Reader, stream *Stream) error {
 
 // Encode serializes the ClassDesc to bytes
 func (cd *ClassDesc) Encode() ([]byte, error) {
+	return cd.EncodeWithContext(nil)
+}
+
+// EncodeWithContext serializes the ClassDesc with a shared encode context
+func (cd *ClassDesc) EncodeWithContext(ctx *EncodeContext) ([]byte, error) {
 	if cd.Description == nil {
 		return nil, &EncodeError{Message: "class description is nil"}
 	}
@@ -46,9 +52,12 @@ func (cd *ClassDesc) Encode() ([]byte, error) {
 	// Validate description type
 	switch cd.Description.(type) {
 	case *NullReference, *NewClassDesc, *Reference, *ProxyClassDesc:
+		if ctx != nil {
+			return EncodeElementWithContext(cd.Description, ctx)
+		}
 		return EncodeElement(cd.Description)
 	default:
-		return nil, &EncodeError{Message: "failed to serialize ClassDesc"}
+		return nil, &EncodeError{Message: fmt.Sprintf("failed to serialize ClassDesc: invalid type %T", cd.Description)}
 	}
 }
 

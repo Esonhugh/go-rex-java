@@ -140,13 +140,33 @@ func TestNewObjectRoundTripWithStringField(t *testing.T) {
 	}
 
 	// Re-encode and verify
-	reencoded, err := EncodeElement(decodedObj)
+	// For round-trip test, we should encode without checking stream references
+	// because the original encoding didn't have those references
+	// Create a context that doesn't check stream references
+	noRefCtx := &EncodeContext{
+		encodedElements:  make(map[Element]int),
+		streamReferences: nil, // Don't check stream references for round-trip
+	}
+	reencoded, err := EncodeElementWithContext(decodedObj, noRefCtx)
 	if err != nil {
 		t.Fatalf("Failed to re-encode: %v", err)
 	}
 
+	// For round-trip, bytes should match exactly
 	if !bytes.Equal(encoded, reencoded) {
 		t.Errorf("Re-encoded data doesn't match original")
+		t.Errorf("Original length: %d, Re-encoded length: %d", len(encoded), len(reencoded))
+		// Find first difference
+		minLen := len(encoded)
+		if len(reencoded) < minLen {
+			minLen = len(reencoded)
+		}
+		for i := 0; i < minLen; i++ {
+			if encoded[i] != reencoded[i] {
+				t.Errorf("First difference at position %d: original=0x%02x, re-encoded=0x%02x", i, encoded[i], reencoded[i])
+				break
+			}
+		}
 	}
 }
 

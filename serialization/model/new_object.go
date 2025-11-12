@@ -83,14 +83,19 @@ func (no *NewObject) Decode(reader io.Reader, stream *Stream) error {
 
 // Encode serializes the NewObject to bytes
 func (no *NewObject) Encode() ([]byte, error) {
+	return no.EncodeWithContext(nil)
+}
+
+// EncodeWithContext serializes the NewObject with a shared encode context
+func (no *NewObject) EncodeWithContext(ctx *EncodeContext) ([]byte, error) {
 	if no.ClassDesc == nil {
 		return nil, &EncodeError{Message: "class description is nil"}
 	}
 
 	encoded := make([]byte, 0, 1024)
 
-	// Encode class description
-	classDescBytes, err := no.ClassDesc.Encode()
+	// Encode class description using ClassDesc.EncodeWithContext
+	classDescBytes, err := no.ClassDesc.EncodeWithContext(ctx)
 	if err != nil {
 		return nil, &EncodeError{Message: "failed to encode ClassDesc: " + err.Error()}
 	}
@@ -98,7 +103,7 @@ func (no *NewObject) Encode() ([]byte, error) {
 
 	// Encode class data
 	for _, value := range no.ClassData {
-		valueBytes, err := no.encodeValue(value)
+		valueBytes, err := no.encodeValueWithContext(value, ctx)
 		if err != nil {
 			return nil, &EncodeError{Message: "failed to encode class data: " + err.Error()}
 		}
@@ -318,8 +323,13 @@ func (no *NewObject) decodeValue(reader io.Reader, valueType string) (interface{
 	}
 }
 
-// encodeValue serializes a primitive value
+// encodeValue serializes a primitive value (without context)
 func (no *NewObject) encodeValue(value *PrimitiveValue) ([]byte, error) {
+	return no.encodeValueWithContext(value, nil)
+}
+
+// encodeValueWithContext serializes a primitive value with context
+func (no *NewObject) encodeValueWithContext(value *PrimitiveValue, ctx *EncodeContext) ([]byte, error) {
 	encoded := make([]byte, 0, 8)
 
 	switch value.Type {
@@ -373,7 +383,11 @@ func (no *NewObject) encodeValue(value *PrimitiveValue) ([]byte, error) {
 		}
 	case Object:
 		if element, ok := value.Value.(Element); ok {
-			return EncodeElement(element)
+			// Use EncodeElementWithContext to check if element should use TC_REFERENCE
+			if ctx != nil {
+				return EncodeElementWithContext(element, ctx)
+			}
+			return EncodeElementWithReferences(element, no.Stream)
 		}
 	}
 

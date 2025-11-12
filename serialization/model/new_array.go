@@ -76,14 +76,19 @@ func (na *NewArray) Decode(reader io.Reader, stream *Stream) error {
 
 // Encode serializes the NewArray to bytes
 func (na *NewArray) Encode() ([]byte, error) {
+	return na.EncodeWithContext(nil)
+}
+
+// EncodeWithContext serializes the NewArray with a shared encode context
+func (na *NewArray) EncodeWithContext(ctx *EncodeContext) ([]byte, error) {
 	if na.ArrayDescription == nil {
 		return nil, &EncodeError{Message: "array description is nil"}
 	}
 
 	encoded := make([]byte, 0, 256)
 
-	// Encode array description
-	descBytes, err := na.ArrayDescription.Encode()
+	// Encode array description using ClassDesc.EncodeWithContext
+	descBytes, err := na.ArrayDescription.EncodeWithContext(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -96,7 +101,7 @@ func (na *NewArray) Encode() ([]byte, error) {
 
 	// Encode array values
 	for _, value := range na.Values {
-		valueBytes, err := na.encodeValue(value)
+		valueBytes, err := na.encodeValueWithContext(value, ctx)
 		if err != nil {
 			return nil, err
 		}
@@ -291,8 +296,13 @@ func (na *NewArray) decodeValue(reader io.Reader) (interface{}, error) {
 	}
 }
 
-// encodeValue encodes a single array element based on the array type
+// encodeValue encodes a single array element (without context)
 func (na *NewArray) encodeValue(value interface{}) ([]byte, error) {
+	return na.encodeValueWithContext(value, nil)
+}
+
+// encodeValueWithContext encodes a single array element with context
+func (na *NewArray) encodeValueWithContext(value interface{}, ctx *EncodeContext) ([]byte, error) {
 	switch na.Type {
 	case "byte":
 		if val, ok := value.(int8); ok {
@@ -342,9 +352,12 @@ func (na *NewArray) encodeValue(value interface{}) ([]byte, error) {
 			return []byte{0}, nil
 		}
 	default:
-		// Object type or nested array - encode as element via EncodeElement
+		// Object type or nested array - encode as element with context
 		if elem, ok := value.(Element); ok {
-			return EncodeElement(elem)
+			if ctx != nil {
+				return EncodeElementWithContext(elem, ctx)
+			}
+			return EncodeElementWithReferences(elem, na.Stream)
 		}
 	}
 

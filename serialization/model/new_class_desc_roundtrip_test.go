@@ -66,11 +66,18 @@ func TestNewClassDescRoundTrip(t *testing.T) {
 	}
 
 	// Re-encode and verify bytes match
-	reencoded, err := EncodeElement(decodedNcd)
+	// For round-trip test, we should encode without checking stream references
+	// because the original encoding didn't have those references
+	noRefCtx := &EncodeContext{
+		encodedElements:  make(map[Element]int),
+		streamReferences: nil, // Don't check stream references for round-trip
+	}
+	reencoded, err := EncodeElementWithContext(decodedNcd, noRefCtx)
 	if err != nil {
 		t.Fatalf("Failed to re-encode: %v", err)
 	}
 
+	// For round-trip, bytes should match exactly
 	if !bytes.Equal(encoded, reencoded) {
 		t.Errorf("Re-encoded data doesn't match original")
 		t.Errorf("Original length: %d, Re-encoded length: %d", len(encoded), len(reencoded))
