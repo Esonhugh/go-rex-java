@@ -98,8 +98,9 @@ func EncodeElementWithContext(element Element, ctx *EncodeContext) ([]byte, erro
 
 	if ctx != nil {
 		if handle, exists := ctx.encodedElements[element]; exists {
-			// Use reference only if this element has been encoded multiple times in this session
-			if ctx.encodedOnceHandle[handle] {
+			// Use reference if this element has been encoded multiple times in this session,
+			// or if it's from the original stream references (to maintain compatibility)
+			if ctx.encodedOnceHandle[handle] || (ctx.streamReferences != nil && handle < len(ctx.streamReferences)) {
 				handleValue := uint32(handle) + constants.BASE_WIRE_HANDLE
 				refElem := NewReference(nil, handleValue)
 				return EncodeElement(refElem)

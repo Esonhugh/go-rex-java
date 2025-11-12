@@ -12,7 +12,6 @@ import (
 // investigating encoding mismatches:
 //
 //	go test ./serialization/model -run TestDebugHibernatePayload -v
-//
 func TestDebugHibernatePayload(t *testing.T) {
 	if os.Getenv("GO_REX_DEBUG") == "" {
 		t.Skip("set GO_REX_DEBUG=1 to run")
@@ -79,5 +78,3 @@ func TestDebugHibernatePayload(t *testing.T) {
 		}
 	}
 }
-
-

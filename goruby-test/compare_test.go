@@ -1,6 +1,7 @@
 package goruby
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -44,14 +45,14 @@ func TestGoRubyPayloadComparison(t *testing.T) {
 		t.Fatalf("Failed to parse JSON: %v", err)
 	}
 
-	// Test specific payloads that are known to have issues
+	// Test remaining failing payloads
 	testPayloads := []string{
-		"MozillaRhino1",
-		"MozillaRhino2",
 		"Hibernate1",
 		"JBossInterceptors1",
-		"JavassistWeld1",
 		"JSON1",
+		"JavassistWeld1",
+		"MozillaRhino1",
+		"MozillaRhino2",
 	}
 
 	results := make([]PayloadComparisonResult, 0)
@@ -114,9 +115,12 @@ func compareGoRubyPayload(payloadName, base64Bytes string, t *testing.T) Payload
 	result.RubyReferences = rubyReferences
 	result.RubyParseError = rubyError
 
-	// Check if they match (allowing some tolerance for edge cases)
-	result.Match = (goContents == rubyContents && goReferences == rubyReferences) ||
-		(goError == "" && rubyError == "")
+	// Check if they match - only consider payloads that both can parse
+	if goError != "" || rubyError != "" {
+		result.Match = false
+	} else {
+		result.Match = (goContents == rubyContents && goReferences == rubyReferences)
+	}
 
 	return result
 }
@@ -152,7 +156,12 @@ func testGoParsing(base64Bytes string) (contents, references, encodeSize int, er
 		return len(stream.Contents), len(stream.References), 0, fmt.Sprintf("encode error: %v", err)
 	}
 
-	return len(stream.Contents), len(stream.References), len(encodedData), ""
+	// Check if re-encoding matches original
+	if len(encodedData) == len(bytesData) && bytes.Equal(encodedData, bytesData) {
+		return len(stream.Contents), len(stream.References), len(encodedData), ""
+	} else {
+		return len(stream.Contents), len(stream.References), len(encodedData), fmt.Sprintf("reencode mismatch: original %d bytes, encoded %d bytes", len(bytesData), len(encodedData))
+	}
 }
 
 func testRubyParsing(payloadName string) (contents, references int, errMsg string) {
@@ -166,13 +175,23 @@ require 'rex/java/serialization'
 begin
   data = JSON.parse(File.read('../ysoserial_payloads.json'))
   payload_bytes = Base64.decode64(data['none']['%s']['bytes'])
-  
+
   io = StringIO.new(payload_bytes)
   stream = Rex::Java::Serialization::Model::Stream.new
   stream.decode(io)
-  
+
   puts "contents:#{stream.contents.length}"
   puts "references:#{stream.references.length}"
+
+  # Also try to re-encode and compare with original
+  encoded = stream.encode
+  if encoded == payload_bytes
+    puts "reencode:match"
+  else
+    puts "reencode:mismatch"
+    puts "original_size:#{payload_bytes.length}"
+    puts "encoded_size:#{encoded.length}"
+  end
 rescue => e
   puts "error:#{e.message}"
 end

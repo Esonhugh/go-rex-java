@@ -102,11 +102,7 @@ func (f *Field) Decode(reader io.Reader, stream *Stream) error {
 			}
 		} else {
 			// Be tolerant: if not Utf/Reference, still capture a readable type string
-			if elem, ok := fieldType.(Element); ok {
-				f.FieldType = NewUtf(stream, elem.String())
-			} else {
-				return &DecodeError{Message: "field type is not a UTF string or Reference"}
-			}
+			f.FieldType = NewUtf(stream, fieldType.String())
 		}
 	}
 
