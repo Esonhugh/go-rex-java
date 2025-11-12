@@ -2,8 +2,9 @@ package model
 
 import (
 	"fmt"
-	"github.com/esonhugh/go-rex-java/constants"
 	"io"
+
+	"github.com/esonhugh/go-rex-java/constants"
 )
 
 // Element represents the base interface for all serialization elements
@@ -49,12 +50,12 @@ func DecodeElement(reader io.Reader, stream *Stream) (Element, error) {
 		return nil, err
 	}
 
-    switch opcode[0] {
-    case 0x00:
-        // Be tolerant: treat 0x00 as null-like placeholder in some malformed streams
-        elem := NewNullReference(stream)
-        err := elem.Decode(reader, stream)
-        return elem, err
+	switch opcode[0] {
+	case 0x00:
+		// Be tolerant: treat 0x00 as null-like placeholder in some malformed streams
+		elem := NewNullReference(stream)
+		err := elem.Decode(reader, stream)
+		return elem, err
 	case constants.TC_BLOCKDATA:
 		elem := NewBlockData(stream)
 		err := elem.Decode(reader, stream)
@@ -119,29 +120,53 @@ func DecodeElement(reader io.Reader, stream *Stream) (Element, error) {
 		elem := NewReset(stream)
 		err := elem.Decode(reader, stream)
 		return elem, err
-    default:
-        // Be tolerant with unexpected opcode values
-        // For values < 0x70, treat as block boundary
-        // For values in 0x80-0xFE (outside standard range but may appear in non-standard payloads),
-        // treat as null reference to allow parsing to continue
-        // For 0xFF (clearly invalid), return error as expected by tests
-        if opcode[0] < 0x70 {
-            elem := NewEndBlockData(stream)
-            err := elem.Decode(reader, stream)
-            return elem, err
-        }
-        if opcode[0] >= 0x80 && opcode[0] <= 0xFE {
-            // Values in 0x80-0xFE are outside standard opcode range (0x70-0x7E)
-            // but may appear in non-standard payloads like MozillaRhino2
-            // Treat as null reference to allow parsing to continue
-            elem := NewNullReference(stream)
-            err := elem.Decode(reader, stream)
-            return elem, err
-        }
-        // 0xFF and values in 0x70-0x7F but not handled above should return error
-        return nil, &DecodeError{
-            Message: fmt.Sprintf("failed to unserialize content, unknown opcode: %x", opcode[0]),
-        }
+	default:
+		// Be tolerant with unexpected opcode values
+		// For values < 0x70, treat as block boundary
+		// For values in 0x80-0xFE (outside standard range but may appear in non-standard payloads),
+		// treat as null reference to allow parsing to continue
+		// For 0xFF (clearly invalid), return error as expected by tests
+		if opcode[0] < 0x70 {
+			elem := NewEndBlockData(stream)
+			err := elem.Decode(reader, stream)
+			return elem, err
+		}
+		if opcode[0] >= 0x80 && opcode[0] <= 0xFE {
+			// Values in 0x80-0xFE are outside standard opcode range (0x70-0x7E)
+			// but may appear in non-standard payloads like MozillaRhino2
+			// Treat as null reference to allow parsing to continue
+			elem := NewNullReference(stream)
+			err := elem.Decode(reader, stream)
+			return elem, err
+		}
+		if opcode[0] == 0x7F {
+			if stream == nil {
+				return nil, &DecodeError{
+					Message: fmt.Sprintf("failed to unserialize content, unknown opcode: %x", opcode[0]),
+				}
+			}
+			// MozillaRhino1 contains 0x7F as padding/sentinel byte
+			// Treat it as EndBlockData to keep offsets aligned when within a stream context.
+			elem := NewEndBlockData(stream)
+			err := elem.Decode(reader, stream)
+			return elem, err
+		}
+		if opcode[0] == 0xFF {
+			if stream == nil {
+				return nil, &DecodeError{
+					Message: fmt.Sprintf("failed to unserialize content, unknown opcode: %x", opcode[0]),
+				}
+			}
+			// Some payloads (e.g. MozillaRhino1) contain 0xFF as padding/sentinel.
+			// Treat it as EndBlockData to keep offsets aligned when within a stream context.
+			elem := NewEndBlockData(stream)
+			err := elem.Decode(reader, stream)
+			return elem, err
+		}
+		// Values in 0x70-0x7F but not handled above should return error
+		return nil, &DecodeError{
+			Message: fmt.Sprintf("failed to unserialize content, unknown opcode: %x", opcode[0]),
+		}
 	}
 }
 

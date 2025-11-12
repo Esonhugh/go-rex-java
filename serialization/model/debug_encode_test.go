@@ -18,7 +18,10 @@ func TestDebugEncode(t *testing.T) {
 	newClassDesc.ClassName = NewUtf(stream, "TestClass")
 	newClassDesc.SerialVersion = 0x1234567890ABCDEF
 	newClassDesc.Flags = constants.SC_SERIALIZABLE
-	newClassDesc.Fields = []*Field{}
+	intField := NewField(stream)
+	intField.Type = Int
+	intField.Name = NewUtf(stream, "value")
+	newClassDesc.Fields = []*Field{intField}
 	newClassDesc.ClassAnnotation = NewAnnotation(stream)
 	newClassDesc.ClassAnnotation.Contents = []Element{NewEndBlockData(stream)}
 	newClassDesc.SuperClass = NewClassDescInstance(stream)

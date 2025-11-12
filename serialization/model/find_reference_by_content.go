@@ -1,8 +1,9 @@
 package model
 
 // findReferenceIndexByContent finds the index of an element in stream references
-// by comparing content (especially for Utf strings)
-// This ensures we find the correct reference even if pointer addresses differ
+// by pointer identity first, then by content for certain element types.
+// Java serialization assigns references based on object identity, but for content-equivalent
+// objects (especially strings), we can reuse references for better compatibility.
 func findReferenceIndexByContent(element Element, streamReferences []Element) int {
 	if element == nil || streamReferences == nil {
 		return -1
@@ -15,24 +16,12 @@ func findReferenceIndexByContent(element Element, streamReferences []Element) in
 		}
 	}
 
-	// For Utf strings, compare by content
+	// For Utf strings, also try content-based matching
+	// This helps with compatibility when the same string content appears multiple times
 	if utf, ok := element.(*Utf); ok {
 		for i, ref := range streamReferences {
 			if refUtf, ok := ref.(*Utf); ok {
-				// Exact content match
 				if utf.Contents == refUtf.Contents {
-					return i
-				}
-			}
-		}
-	}
-
-	// For LongUtf strings, compare by content
-	if longUtf, ok := element.(*LongUtf); ok {
-		for i, ref := range streamReferences {
-			if refLongUtf, ok := ref.(*LongUtf); ok {
-				// Exact content match
-				if longUtf.Contents == refLongUtf.Contents {
 					return i
 				}
 			}

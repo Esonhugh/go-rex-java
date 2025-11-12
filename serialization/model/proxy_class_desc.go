@@ -28,12 +28,12 @@ func (pcd *ProxyClassDesc) Decode(reader io.Reader, stream *Stream) error {
 
 	// Read interface count (4 bytes, int32)
 	countBytes := make([]byte, constants.SIZE_INT)
-    if _, err := io.ReadFull(reader, countBytes); err != nil {
-        if err == io.EOF || err == io.ErrUnexpectedEOF {
-            return nil
-        }
-        return &DecodeError{Message: "failed to read proxy class description interface count"}
-    }
+	if _, err := io.ReadFull(reader, countBytes); err != nil {
+		if err == io.EOF || err == io.ErrUnexpectedEOF {
+			return nil
+		}
+		return &DecodeError{Message: "failed to read proxy class description interface count"}
+	}
 	count := int32(binary.BigEndian.Uint32(countBytes))
 
 	// Add reference to stream
@@ -97,6 +97,44 @@ func (pcd *ProxyClassDesc) Encode() ([]byte, error) {
 
 	// Encode super class
 	superBytes, err := pcd.SuperClass.Encode()
+	if err != nil {
+		return nil, err
+	}
+	encoded = append(encoded, superBytes...)
+
+	return encoded, nil
+}
+
+func (pcd *ProxyClassDesc) EncodeWithContext(ctx *EncodeContext) ([]byte, error) {
+	if ctx == nil {
+		return pcd.Encode()
+	}
+
+	if pcd.ClassAnnotation == nil || pcd.SuperClass == nil {
+		return nil, &EncodeError{Message: "proxy class description is incomplete"}
+	}
+
+	encoded := make([]byte, 0, 256)
+
+	countBytes := make([]byte, constants.SIZE_INT)
+	binary.BigEndian.PutUint32(countBytes, uint32(len(pcd.Interfaces)))
+	encoded = append(encoded, countBytes...)
+
+	for _, iface := range pcd.Interfaces {
+		ifaceBytes, err := iface.Encode()
+		if err != nil {
+			return nil, err
+		}
+		encoded = append(encoded, ifaceBytes...)
+	}
+
+	annBytes, err := pcd.ClassAnnotation.EncodeWithContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+	encoded = append(encoded, annBytes...)
+
+	superBytes, err := pcd.SuperClass.EncodeWithContext(ctx)
 	if err != nil {
 		return nil, err
 	}

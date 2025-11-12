@@ -4,75 +4,20 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
-	"os"
 	"testing"
 
 	"github.com/esonhugh/go-rex-java/serialization/model"
 )
 
-// ExtendedPayloadsData includes all categories
-type ExtendedPayloadsData struct {
-	None       map[string]PayloadInfo `json:"none"`
-	Bash       map[string]PayloadInfo `json:"bash"`
-	Cmd        map[string]PayloadInfo `json:"cmd"`
-	Powershell map[string]PayloadInfo `json:"powershell"`
-}
-
 // TestCommonsBeanutils1DetailedAnalysis 详细分析 CommonsBeanutils1 payload
 func TestCommonsBeanutils1DetailedAnalysis(t *testing.T) {
-	// 读取 JSON 文件
-	data, err := os.ReadFile("ysoserial_payloads.json")
-	if err != nil {
-		t.Fatalf("Failed to read ysoserial_payloads.json: %v", err)
-	}
-
-	var payloads ExtendedPayloadsData
-	if err := json.Unmarshal(data, &payloads); err != nil {
-		t.Fatalf("Failed to parse JSON: %v", err)
-	}
+	payloads := loadExtendedPayloads(t)
 
 	// 查找 CommonsBeanutils1
-	var payloadInfo PayloadInfo
-	var found bool
-	var payloadName string
-	
-	// 在所有类别中查找 CommonsBeanutils1
-	allMaps := []map[string]PayloadInfo{
-		payloads.None,
-		payloads.Bash,
-		payloads.Cmd,
-		payloads.Powershell,
-	}
-	
-	for _, payloadMap := range allMaps {
-		if payload, ok := payloadMap["CommonsBeanutils1"]; ok && payload.Bytes != "" {
-			payloadInfo = payload
-			payloadName = "CommonsBeanutils1"
-			found = true
-			break
-		}
-	}
-	
-	// 如果没找到，找第一个有 bytes 的
-	if !found {
-		for _, payloadMap := range allMaps {
-			for name, payload := range payloadMap {
-				if payload.Bytes != "" {
-					payloadInfo = payload
-					payloadName = name
-					found = true
-					break
-				}
-			}
-			if found {
-				break
-			}
-		}
-	}
-
-	if !found {
+	payloadInfo, _, ok := findPayload(payloads, "CommonsBeanutils1")
+	payloadName := "CommonsBeanutils1"
+	if !ok {
 		t.Fatal("CommonsBeanutils1 payload not found in JSON")
 	}
 
@@ -119,7 +64,7 @@ func TestCommonsBeanutils1DetailedAnalysis(t *testing.T) {
 		}
 		fmt.Printf("  [%d] Type: %T\n", i, content)
 		fmt.Printf("      String: %s\n", content.String())
-		
+
 		// 如果是 NewObject，打印更多信息
 		if no, ok := content.(*model.NewObject); ok {
 			if no.ClassDesc != nil && no.ClassDesc.Description != nil {
@@ -154,7 +99,7 @@ func TestCommonsBeanutils1DetailedAnalysis(t *testing.T) {
 			fmt.Printf("❌ Encode ERROR: %v\n", err)
 		} else {
 			fmt.Printf("✅ Encode SUCCESS: %d bytes\n", len(encodedData))
-			
+
 			// 比较原始和编码后的数据
 			if len(encodedData) != len(bytesData) {
 				fmt.Printf("⚠️  Size mismatch: original=%d, encoded=%d\n", len(bytesData), len(encodedData))
@@ -171,7 +116,7 @@ func TestCommonsBeanutils1DetailedAnalysis(t *testing.T) {
 					fmt.Printf("⚠️  Data mismatch at position %d\n", diffPos)
 					fmt.Printf("   Original: 0x%02x\n", bytesData[diffPos])
 					fmt.Printf("   Encoded:  0x%02x\n", encodedData[diffPos])
-					
+
 					// 打印上下文
 					start := max(0, diffPos-10)
 					end := min(len(bytesData), diffPos+10)
@@ -196,7 +141,7 @@ func TestCommonsBeanutils1DetailedAnalysis(t *testing.T) {
 
 func findDifferences(original, encoded []byte) {
 	minLen := min(len(original), len(encoded))
-	
+
 	// 找出所有不同的位置
 	diffs := []int{}
 	for i := 0; i < minLen; i++ {
@@ -204,18 +149,18 @@ func findDifferences(original, encoded []byte) {
 			diffs = append(diffs, i)
 		}
 	}
-	
+
 	if len(diffs) == 0 && len(original) == len(encoded) {
 		fmt.Printf("✅ No differences found! Perfect match.\n")
 		return
 	}
-	
+
 	fmt.Printf("Found %d differences (first 20 shown):\n", len(diffs))
 	if len(original) != len(encoded) {
-		fmt.Printf("Size difference: original=%d, encoded=%d (diff=%d)\n", 
+		fmt.Printf("Size difference: original=%d, encoded=%d (diff=%d)\n",
 			len(original), len(encoded), len(encoded)-len(original))
 	}
-	
+
 	maxDiffs := min(20, len(diffs))
 	for i := 0; i < maxDiffs; i++ {
 		pos := diffs[i]
@@ -230,15 +175,15 @@ func findDifferences(original, encoded []byte) {
 			fmt.Printf(" 0x%02x", encoded[pos+1])
 		}
 		fmt.Printf("\n")
-		
+
 		// 显示上下文（前后各 10 字节）
 		start := max(0, pos-10)
 		endOrig := min(len(original), pos+10)
 		endEnc := min(len(encoded), pos+10)
-		
+
 		fmt.Printf("    Context (original): %s\n", hex.EncodeToString(original[start:endOrig]))
 		fmt.Printf("    Context (encoded):  %s\n", hex.EncodeToString(encoded[start:endEnc]))
-		
+
 		// 尝试识别这是什么类型的数据
 		if pos >= 4 {
 			// 检查是否是 opcode
@@ -255,7 +200,7 @@ func findDifferences(original, encoded []byte) {
 			}
 		}
 	}
-	
+
 	if len(diffs) > maxDiffs {
 		fmt.Printf("\n... and %d more differences\n", len(diffs)-maxDiffs)
 	}
@@ -274,4 +219,3 @@ func max(a, b int) int {
 	}
 	return b
 }
-

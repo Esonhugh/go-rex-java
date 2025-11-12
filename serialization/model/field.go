@@ -2,8 +2,9 @@ package model
 
 import (
 	"encoding/json"
-	"github.com/esonhugh/go-rex-java/constants"
 	"io"
+
+	"github.com/esonhugh/go-rex-java/constants"
 )
 
 // Field represents a field description in Java serialization
@@ -80,16 +81,6 @@ func (f *Field) Decode(reader io.Reader, stream *Stream) error {
 		}
 
 		if utf, ok := fieldType.(*Utf); ok {
-			// Check if this Utf already exists in stream references (by content)
-			// If so, use the one from references to ensure correct reference matching
-			if stream != nil {
-				for _, ref := range stream.References {
-					if refUtf, ok := ref.(*Utf); ok && utf.Contents == refUtf.Contents {
-						f.FieldType = refUtf // Use the one from references
-						return nil
-					}
-				}
-			}
 			f.FieldType = utf
 		} else if ref, ok := fieldType.(*Reference); ok {
 			// If it's a reference, resolve it
