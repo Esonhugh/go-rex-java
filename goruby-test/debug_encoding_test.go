@@ -32,7 +32,7 @@ func TestDebugCommonsCollections3Encoding(t *testing.T) {
 		t.Fatalf("Failed to parse JSON: %v", err)
 	}
 
-	payloadName := "CommonsCollections5"
+	payloadName := "MozillaRhino1"
 	payload, exists := payloads.None[payloadName]
 	if !exists {
 		t.Fatalf("Payload %s not found", payloadName)

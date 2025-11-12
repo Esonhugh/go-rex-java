@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-
-	"github.com/esonhugh/go-rex-java/constants"
 )
 
 // Reference represents an object reference in Java serialization
@@ -32,21 +30,13 @@ func (r *Reference) Decode(reader io.Reader, stream *Stream) error {
 
 	r.Handle = binary.BigEndian.Uint32(handleBytes)
 	r.Stream = stream
-
-	// Validate reference handle for ysoserial compatibility
-	// Some payloads contain references to non-existent objects
-	refIndex := int(r.Handle - constants.BASE_WIRE_HANDLE)
-	if refIndex < 0 || (stream != nil && refIndex >= len(stream.References)) {
-		// Invalid reference - this can happen in specially crafted payloads
-		// For compatibility, we allow this but mark it as potentially invalid
-		// The encoding logic will need to handle this case
-	}
-
 	return nil
 }
 
 // Encode serializes the Reference to bytes
 func (r *Reference) Encode() ([]byte, error) {
+	// Always encode with the stored handle value, even for unresolvable references
+	// This preserves the original payload structure
 	encoded := make([]byte, 4)
 	binary.BigEndian.PutUint32(encoded, r.Handle)
 	return encoded, nil
