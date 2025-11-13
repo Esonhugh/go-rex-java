@@ -10,7 +10,7 @@ import (
 	"github.com/esonhugh/go-rex-java/serialization/model"
 )
 
-func main() {
+func main2() {
 	data, _ := os.ReadFile("ysoserial_payloads.json")
 	var payloads struct {
 		None map[string]struct {

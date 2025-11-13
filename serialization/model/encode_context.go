@@ -25,15 +25,17 @@ func NewEncodeContext(stream *Stream) *EncodeContext {
 	ctx := &EncodeContext{
 		encodedElements:   make(map[Element]int),
 		encodedOnceHandle: make(map[int]bool),
-		streamReferences:  stream.References,
-		nextHandle:        0,
+		streamReferences:  stream.References,      // Use original stream references for consistency
+		nextHandle:        len(stream.References), // Start after existing references
 	}
 
-	if stream != nil {
-		ctx.streamReferences = stream.References
-		ctx.nextHandle = len(stream.References)
-		// Don't pre-register stream references as encoded
-		// This allows us to match the original payload's reference usage patterns
+	// Pre-register stream references with their original indices
+	// This ensures elements use their original handles for consistent encoding
+	if stream != nil && stream.References != nil {
+		for i, ref := range stream.References {
+			ctx.encodedElements[ref] = i
+			ctx.encodedOnceHandle[i] = false // Mark as not yet encoded
+		}
 	}
 
 	return ctx
@@ -69,30 +71,8 @@ func (ctx *EncodeContext) registerElement(element Element) {
 		return
 	}
 
-	if ctx.streamReferences != nil {
-		// Check if this element was originally in the stream references
-		// If so, use its original handle to maintain compatibility
-		for i, ref := range ctx.streamReferences {
-			if ref == element {
-				// Found exact match, use original handle
-				ctx.encodedElements[element] = i
-				ctx.encodedOnceHandle[i] = false
-				return
-			}
-		}
-
-		// For strings, also check content-based matching
-		if utf, ok := element.(*Utf); ok {
-			for i, ref := range ctx.streamReferences {
-				if refUtf, ok := ref.(*Utf); ok && refUtf.Contents == utf.Contents {
-					// Found content match, use original handle
-					ctx.encodedElements[element] = i
-					ctx.encodedOnceHandle[i] = false
-					return
-				}
-			}
-		}
-	}
+	// Don't pre-register elements from stream references to avoid reference counting inconsistencies
+	// References should be determined dynamically during the encoding process
 
 	handle := ctx.nextHandle
 	ctx.encodedElements[element] = handle
@@ -102,20 +82,31 @@ func (ctx *EncodeContext) registerElement(element Element) {
 }
 
 // EncodeElementWithContext encodes an element, checking if it has been encoded in this encoding session
-// We don't use stream references directly to avoid introducing references that weren't in the original payload
 func EncodeElementWithContext(element Element, ctx *EncodeContext) ([]byte, error) {
 	if element == nil {
 		return nil, &EncodeError{Message: "element is nil"}
 	}
 
-	if ctx != nil {
+	// Check if this element should be referenced
+	if ctx != nil && ShouldBeReferenced(element) {
 		if handle, exists := ctx.encodedElements[element]; exists {
-			// Use reference only if this element has been encoded multiple times in this session
-			// We need to rebuild reference decisions from scratch for compatibility
-			if ctx.encodedOnceHandle[handle] {
-				handleValue := uint32(handle) + constants.BASE_WIRE_HANDLE
-				refElem := NewReference(nil, handleValue)
-				return EncodeElement(refElem)
+			// Special check: Top-level content objects should never be referenced
+			switch element.(type) {
+			case *NewObject, *NewArray, *NewClassDesc:
+				// Don't use reference for top-level content objects
+				break
+			default:
+				// Check if element has been encoded before (not just registered)
+				// Only use reference if element has been encoded at least once
+				if ctx.encodedOnceHandle[handle] {
+					// Element has been encoded before - use reference
+					handleValue := uint32(handle) + constants.BASE_WIRE_HANDLE
+					refElem := NewReference(nil, handleValue)
+					return EncodeElement(refElem)
+				}
+				// Element is registered but not yet encoded - mark as encoded
+				// and continue to encode it normally
+				ctx.encodedOnceHandle[handle] = true
 			}
 		}
 	}

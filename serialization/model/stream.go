@@ -4,8 +4,9 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
-	"github.com/esonhugh/go-rex-java/constants"
 	"io"
+
+	"github.com/esonhugh/go-rex-java/constants"
 )
 
 // Stream represents a Java serialization stream
@@ -82,7 +83,8 @@ func (s *Stream) Encode() ([]byte, error) {
 		var contentBytes []byte
 		var err error
 
-		// Check if content should use EncodeWithContext
+		// Top-level contents use shared context for nested references
+		// but ensure top-level objects themselves are not referenced
 		switch e := content.(type) {
 		case *NewObject:
 			contentBytes, err = e.EncodeWithContext(ctx)
