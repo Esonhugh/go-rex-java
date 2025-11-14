@@ -12,20 +12,22 @@ import (
 // Stream represents a Java serialization stream
 type Stream struct {
 	*BaseElement
-	Magic      uint16
-	Version    uint16
-	Contents   []Element
-	References []Element
+	Magic             uint16
+	Version           uint16
+	Contents          []Element
+	References        []Element
+	ReferencedIndices map[int]bool // Track which reference indices were actually referenced in the original stream
 }
 
 // NewStream creates a new Stream instance
 func NewStream() *Stream {
 	return &Stream{
-		BaseElement: NewBaseElement(nil),
-		Magic:       constants.StreamMagic,
-		Version:     constants.StreamVersion,
-		Contents:    make([]Element, 0),
-		References:  make([]Element, 0),
+		BaseElement:       NewBaseElement(nil),
+		Magic:             constants.StreamMagic,
+		Version:           constants.StreamVersion,
+		Contents:          make([]Element, 0),
+		References:        make([]Element, 0),
+		ReferencedIndices: make(map[int]bool),
 	}
 }
 

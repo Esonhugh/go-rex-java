@@ -150,11 +150,16 @@ func (f *Field) EncodeWithContext(ctx *EncodeContext) ([]byte, error) {
 
 	// Encode field type if it's an object type
 	if f.IsObject() && f.FieldType != nil {
+		// Debug: Log field type being encoded
+		debugLog("Field.EncodeWithContext: Encoding field type string: %q", f.FieldType.Contents)
 		// Use EncodeElementWithContext to check if fieldType should use TC_REFERENCE
 		if ctx != nil {
 			fieldTypeBytes, err := EncodeElementWithContext(f.FieldType, ctx)
 			if err != nil {
 				return nil, err
+			}
+			if len(fieldTypeBytes) > 0 {
+				debugLog("Field.EncodeWithContext: Encoded field type string %q, opcode=0x%02x, len=%d", f.FieldType.Contents, fieldTypeBytes[0], len(fieldTypeBytes))
 			}
 			encoded = append(encoded, fieldTypeBytes...)
 		} else {

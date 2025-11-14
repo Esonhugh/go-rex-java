@@ -1,7 +1,5 @@
 package model
 
-import "github.com/esonhugh/go-rex-java/constants"
-
 // EncodeElementWithReferences encodes an element, checking if it should use TC_REFERENCE
 // This is a convenience function that creates a context from stream
 // For better control, use EncodeElementWithContext with a shared context
@@ -11,12 +9,9 @@ func EncodeElementWithReferences(element Element, stream *Stream) ([]byte, error
 		return EncodeElement(element)
 	}
 
-	if idx := findReferenceIndexByContent(element, stream.References); idx >= 0 {
-		handle := uint32(idx) + constants.BASE_WIRE_HANDLE
-		refElem := NewReference(nil, handle)
-		return EncodeElement(refElem)
-	}
-
+	// Create context and use EncodeElementWithContext which properly checks referencedIndices
+	// Don't use findReferenceIndexByContent directly here, as it doesn't check if the element
+	// was actually referenced in the original stream
 	ctx := NewEncodeContext(stream)
 	ctx.markAllHandlesEncoded()
 	return EncodeElementWithContext(element, ctx)

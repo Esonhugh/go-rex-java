@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+
+	"github.com/esonhugh/go-rex-java/constants"
 )
 
 // Reference represents an object reference in Java serialization
@@ -30,6 +32,18 @@ func (r *Reference) Decode(reader io.Reader, stream *Stream) error {
 
 	r.Handle = binary.BigEndian.Uint32(handleBytes)
 	r.Stream = stream
+
+	// Track that this reference index was used in the original stream
+	if stream != nil {
+		refIndex := int(r.Handle - constants.BASE_WIRE_HANDLE)
+		if refIndex >= 0 && refIndex < len(stream.References) {
+			if stream.ReferencedIndices == nil {
+				stream.ReferencedIndices = make(map[int]bool)
+			}
+			stream.ReferencedIndices[refIndex] = true
+		}
+	}
+
 	return nil
 }
 

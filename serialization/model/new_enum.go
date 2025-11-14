@@ -25,14 +25,14 @@ func (ne *NewEnum) Decode(reader io.Reader, stream *Stream) error {
 	ne.Stream = stream
 
 	// Decode enum class description (ClassDesc)
-    ne.EnumClassDesc = NewClassDescInstance(stream)
-    if err := ne.EnumClassDesc.Decode(reader, stream); err != nil {
-        // Be tolerant for empty/minimal input
-        if err == io.EOF || err == io.ErrUnexpectedEOF {
-            return nil
-        }
-        return &DecodeError{Message: "failed to decode enum class description"}
-    }
+	ne.EnumClassDesc = NewClassDescInstance(stream)
+	if err := ne.EnumClassDesc.Decode(reader, stream); err != nil {
+		// Be tolerant for empty/minimal input
+		if err == io.EOF || err == io.ErrUnexpectedEOF {
+			return nil
+		}
+		return &DecodeError{Message: "failed to decode enum class description"}
+	}
 
 	// Add reference to stream
 	if stream != nil {
@@ -40,13 +40,13 @@ func (ne *NewEnum) Decode(reader io.Reader, stream *Stream) error {
 	}
 
 	// Decode enum constant name (TC_STRING)
-    enumConstantElem, err := DecodeElement(reader, stream)
-    if err != nil {
-        if err == io.EOF || err == io.ErrUnexpectedEOF {
-            return nil
-        }
-        return &DecodeError{Message: "failed to decode enum constant name"}
-    }
+	enumConstantElem, err := DecodeElement(reader, stream)
+	if err != nil {
+		if err == io.EOF || err == io.ErrUnexpectedEOF {
+			return nil
+		}
+		return &DecodeError{Message: "failed to decode enum constant name"}
+	}
 
 	if utf, ok := enumConstantElem.(*Utf); ok {
 		ne.EnumConstantName = utf
@@ -59,8 +59,47 @@ func (ne *NewEnum) Decode(reader io.Reader, stream *Stream) error {
 
 // Encode serializes the NewEnum to bytes
 func (ne *NewEnum) Encode() ([]byte, error) {
-	// TODO: Implement new enum encoding
-	return []byte{}, nil
+	return ne.EncodeWithContext(nil)
+}
+
+// EncodeWithContext serializes the NewEnum with a shared encode context
+func (ne *NewEnum) EncodeWithContext(ctx *EncodeContext) ([]byte, error) {
+	encoded := make([]byte, 0, 256)
+
+	// Encode enum class description (ClassDesc)
+	if ne.EnumClassDesc == nil {
+		return nil, &EncodeError{Message: "enum class description is nil"}
+	}
+
+	var classDescBytes []byte
+	var err error
+	if ctx != nil {
+		classDescBytes, err = ne.EnumClassDesc.EncodeWithContext(ctx)
+	} else {
+		classDescBytes, err = ne.EnumClassDesc.Encode()
+	}
+	if err != nil {
+		return nil, &EncodeError{Message: "failed to encode enum class description: " + err.Error()}
+	}
+	encoded = append(encoded, classDescBytes...)
+
+	// Encode enum constant name (TC_STRING)
+	if ne.EnumConstantName == nil {
+		return nil, &EncodeError{Message: "enum constant name is nil"}
+	}
+
+	var constantNameBytes []byte
+	if ctx != nil {
+		constantNameBytes, err = EncodeElementWithContext(ne.EnumConstantName, ctx)
+	} else {
+		constantNameBytes, err = EncodeElement(ne.EnumConstantName)
+	}
+	if err != nil {
+		return nil, &EncodeError{Message: "failed to encode enum constant name: " + err.Error()}
+	}
+	encoded = append(encoded, constantNameBytes...)
+
+	return encoded, nil
 }
 
 // String returns a string representation of the NewEnum

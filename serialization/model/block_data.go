@@ -3,8 +3,9 @@ package model
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/esonhugh/go-rex-java/constants"
 	"io"
+
+	"github.com/esonhugh/go-rex-java/constants"
 )
 
 // BlockData represents block data in Java serialization
@@ -50,7 +51,23 @@ func (bd *BlockData) Encode() ([]byte, error) {
 	encoded := make([]byte, 1+len(bd.Data))
 	encoded[0] = byte(len(bd.Data))
 	copy(encoded[1:], bd.Data)
+	// Debug: Log BlockData encoding
+	showLen := len(bd.Data)
+	if showLen > 16 {
+		showLen = 16
+	}
+	if len(bd.Data) > 0 {
+		debugLog("BlockData.Encode: length=%d, data=%x", len(bd.Data), bd.Data[:showLen])
+	} else {
+		debugLog("BlockData.Encode: length=0 (empty)")
+	}
 	return encoded, nil
+}
+
+// EncodeWithContext serializes the BlockData with a shared encode context
+func (bd *BlockData) EncodeWithContext(ctx *EncodeContext) ([]byte, error) {
+	// BlockData encoding is the same with or without context
+	return bd.Encode()
 }
 
 // String returns a string representation of the BlockData
