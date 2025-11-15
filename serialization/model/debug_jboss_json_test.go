@@ -19,6 +19,16 @@ func TestJSON1Debug(t *testing.T) {
 	testPayloadDebug(t, "JSON1", 0x2b4)
 }
 
+// TestMozillaRhino1Debug tests MozillaRhino1 encoding with detailed debug output
+func TestMozillaRhino1Debug(t *testing.T) {
+	testPayloadDebug(t, "MozillaRhino1", 0x72f)
+}
+
+// TestMozillaRhino2Debug tests MozillaRhino2 encoding with detailed debug output
+func TestMozillaRhino2Debug(t *testing.T) {
+	testPayloadDebug(t, "MozillaRhino2", 0x34a)
+}
+
 func testPayloadDebug(t *testing.T, payloadName string, diffPos int) {
 	// Read payload
 	file, err := os.Open("../../ysoserial_payloads.json")

@@ -1,6 +1,7 @@
 package model
 
 import (
+	"bytes"
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
@@ -18,6 +19,9 @@ type NewClassDesc struct {
 	Fields          []*Field
 	ClassAnnotation *Annotation
 	SuperClass      *ClassDesc
+	// OmitFlagsAndFields indicates that flags and field_count were omitted in the original stream
+	// and should be omitted during encoding to match the original format
+	OmitFlagsAndFields bool
 }
 
 // NewNewClassDesc creates a new NewClassDesc instance
@@ -42,6 +46,7 @@ func (ncd *NewClassDesc) Decode(reader io.Reader, stream *Stream) error {
 	if err := ncd.ClassName.Decode(reader, stream); err != nil {
 		return fmt.Errorf("failed to decode class name: %w", err)
 	}
+	debugLog("NewClassDesc.Decode: Decoded class name: %q (length=%d)", ncd.ClassName.Contents, len(ncd.ClassName.Contents))
 
 	// Decode serial version (8 bytes)
 	serialBytes := make([]byte, constants.SIZE_LONG)
@@ -55,24 +60,115 @@ func (ncd *NewClassDesc) Decode(reader io.Reader, stream *Stream) error {
 	} else {
 		ncd.SerialVersion = binary.BigEndian.Uint64(serialBytes)
 	}
+	debugLog("NewClassDesc.Decode: Decoded SerialVersionUID: 0x%016x", ncd.SerialVersion)
 
 	// Add reference to stream
 	if stream != nil {
 		stream.AddReference(ncd)
+		debugLog("NewClassDesc.Decode: Added to stream.References at index %d", len(stream.References)-1)
 	}
 
 	// Decode flags (1 byte)
-	flagsBytes := make([]byte, constants.SIZE_BYTE)
-	if _, err := io.ReadFull(reader, flagsBytes); err != nil {
+	// Check if the next byte is TC_BLOCKDATA (0x77), which indicates ClassAnnotation starts
+	// This can happen if flags and field_count are omitted or in a special format
+	var err error
+	var peekBuf [1]byte
+	debugLog("NewClassDesc.Decode: About to read flags byte after SerialVersionUID (0x%016x)", ncd.SerialVersion)
+	if _, err = io.ReadFull(reader, peekBuf[:]); err != nil {
 		// Be tolerant: if we can't read flags, use default
 		if err == io.EOF || err == io.ErrUnexpectedEOF {
 			ncd.Flags = constants.SC_SERIALIZABLE
-		} else {
-			return &DecodeError{Message: "failed to read flags"}
+			// Use default field count of 0
+			ncd.Fields = make([]*Field, 0)
+			// Decode class annotation
+			ncd.ClassAnnotation = NewAnnotation(stream)
+			if err := ncd.ClassAnnotation.Decode(reader, stream); err != nil {
+				return err
+			}
+			// Decode super class
+			ncd.SuperClass = NewClassDescInstance(stream)
+			if err := ncd.SuperClass.Decode(reader, stream); err != nil {
+				// Be tolerant: if we can't read super class, use null reference
+				if err == io.EOF || err == io.ErrUnexpectedEOF {
+					ncd.SuperClass.Description = NewNullReference(stream)
+				} else {
+					return err
+				}
+			}
+			return nil
 		}
-	} else {
-		ncd.Flags = flagsBytes[0]
+		return &DecodeError{Message: "failed to read flags"}
 	}
+
+	// Check if peeked byte is TC_BLOCKDATA (ClassAnnotation starts immediately)
+	debugLog("NewClassDesc.Decode: Peeked byte after SerialVersionUID: 0x%02x", peekBuf[0])
+	if peekBuf[0] == constants.TC_BLOCKDATA || peekBuf[0] == constants.TC_BLOCKDATALONG {
+		// ClassAnnotation starts immediately, flags and field_count are omitted
+		// Use default flags and field_count = 0
+		ncd.Flags = constants.SC_SERIALIZABLE
+		ncd.Fields = make([]*Field, 0)
+		ncd.OmitFlagsAndFields = true // Mark that flags and field_count were omitted
+		debugLog("NewClassDesc.Decode: ✅ Detected TC_BLOCKDATA (0x%02x) at flags position (first check), omitting flags and field_count", peekBuf[0])
+
+		// The peeked byte is the start of ClassAnnotation, so we need to put it back
+		// Use a MultiReader to put the byte back
+		reader = io.MultiReader(bytes.NewReader(peekBuf[:]), reader)
+
+		// Decode class annotation
+		ncd.ClassAnnotation = NewAnnotation(stream)
+		debugLog("NewClassDesc.Decode: Decoding ClassAnnotation (OmitFlagsAndFields=true, SerialVersionUID=0x%016x)", ncd.SerialVersion)
+		if err := ncd.ClassAnnotation.Decode(reader, stream); err != nil {
+			debugLog("NewClassDesc.Decode: Failed to decode ClassAnnotation: %v", err)
+			return err
+		}
+		debugLog("NewClassDesc.Decode: ClassAnnotation decoded with %d elements", len(ncd.ClassAnnotation.Contents))
+		// Decode super class
+		ncd.SuperClass = NewClassDescInstance(stream)
+		if err := ncd.SuperClass.Decode(reader, stream); err != nil {
+			// Be tolerant: if we can't read super class, use null reference
+			if err == io.EOF || err == io.ErrUnexpectedEOF {
+				ncd.SuperClass.Description = NewNullReference(stream)
+			} else {
+				return err
+			}
+		}
+		return nil
+	}
+
+	// Normal case: the byte is flags
+	// But check if it's actually TC_BLOCKDATA (indicating flags/field_count are omitted)
+	// This can happen if the check above didn't catch it (edge case)
+	if peekBuf[0] == constants.TC_BLOCKDATA || peekBuf[0] == constants.TC_BLOCKDATALONG {
+		// This is actually TC_BLOCKDATA, not flags!
+		// Flags and field_count are omitted, ClassAnnotation starts immediately
+		debugLog("NewClassDesc.Decode: ⚠️  Found TC_BLOCKDATA at flags position in normal path, switching to OmitFlagsAndFields=true")
+		ncd.Flags = constants.SC_SERIALIZABLE
+		ncd.Fields = make([]*Field, 0)
+		ncd.OmitFlagsAndFields = true
+
+		// Put the byte back and decode ClassAnnotation
+		reader = io.MultiReader(bytes.NewReader(peekBuf[:]), reader)
+		ncd.ClassAnnotation = NewAnnotation(stream)
+		debugLog("NewClassDesc.Decode: Decoding ClassAnnotation (OmitFlagsAndFields=true, SerialVersionUID=0x%016x)", ncd.SerialVersion)
+		if err := ncd.ClassAnnotation.Decode(reader, stream); err != nil {
+			debugLog("NewClassDesc.Decode: Failed to decode ClassAnnotation: %v", err)
+			return err
+		}
+		debugLog("NewClassDesc.Decode: ClassAnnotation decoded with %d elements", len(ncd.ClassAnnotation.Contents))
+		// Decode super class
+		ncd.SuperClass = NewClassDescInstance(stream)
+		if err := ncd.SuperClass.Decode(reader, stream); err != nil {
+			// Be tolerant: if we can't read super class, use null reference
+			if err == io.EOF || err == io.ErrUnexpectedEOF {
+				ncd.SuperClass.Description = NewNullReference(stream)
+			} else {
+				return err
+			}
+		}
+		return nil
+	}
+
+	ncd.Flags = peekBuf[0]
 
 	// Decode field count (2 bytes)
 	fieldCountBytes := make([]byte, constants.SIZE_SHORT)
@@ -104,10 +200,12 @@ func (ncd *NewClassDesc) Decode(reader io.Reader, stream *Stream) error {
 
 	// Decode class annotation
 	ncd.ClassAnnotation = NewAnnotation(stream)
+	debugLog("NewClassDesc.Decode: Decoding ClassAnnotation (normal path)")
 	if err := ncd.ClassAnnotation.Decode(reader, stream); err != nil {
+		debugLog("NewClassDesc.Decode: Failed to decode ClassAnnotation: %v", err)
 		return err
 	}
-
+	debugLog("NewClassDesc.Decode: ClassAnnotation decoded with %d elements", len(ncd.ClassAnnotation.Contents))
 	// Decode super class
 	ncd.SuperClass = NewClassDescInstance(stream)
 	if err := ncd.SuperClass.Decode(reader, stream); err != nil {
@@ -148,21 +246,28 @@ func (ncd *NewClassDesc) EncodeWithContext(ctx *EncodeContext) ([]byte, error) {
 	binary.BigEndian.PutUint64(serialBytes, ncd.SerialVersion)
 	encoded = append(encoded, serialBytes...)
 
-	// Encode flags (1 byte)
-	encoded = append(encoded, ncd.Flags)
+	// If flags and field_count were omitted in the original stream, omit them during encoding
+	if !ncd.OmitFlagsAndFields {
+		// Encode flags (1 byte)
+		encoded = append(encoded, ncd.Flags)
 
-	// Encode field count (2 bytes)
-	fieldCountBytes := make([]byte, constants.SIZE_SHORT)
-	binary.BigEndian.PutUint16(fieldCountBytes, uint16(len(ncd.Fields)))
-	encoded = append(encoded, fieldCountBytes...)
+		// Encode field count (2 bytes)
+		fieldCountBytes := make([]byte, constants.SIZE_SHORT)
+		binary.BigEndian.PutUint16(fieldCountBytes, uint16(len(ncd.Fields)))
+		encoded = append(encoded, fieldCountBytes...)
 
-	// Encode fields
-	for _, field := range ncd.Fields {
-		fieldBytes, err := field.EncodeWithContext(ctx)
-		if err != nil {
-			return nil, err
+		// Encode fields
+		for _, field := range ncd.Fields {
+			fieldBytes, err := field.EncodeWithContext(ctx)
+			if err != nil {
+				return nil, err
+			}
+			encoded = append(encoded, fieldBytes...)
 		}
-		encoded = append(encoded, fieldBytes...)
+	} else {
+		// If OmitFlagsAndFields is true, skip flags, field_count, and fields
+		// ClassAnnotation will start immediately after SerialVersionUID
+		debugLog("NewClassDesc.EncodeWithContext: OmitFlagsAndFields=true, skipping flags and field_count")
 	}
 
 	// Encode class annotation

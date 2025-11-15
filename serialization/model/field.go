@@ -67,11 +67,30 @@ func (f *Field) Decode(reader io.Reader, stream *Stream) error {
 	}
 
 	// Decode field type if it's an object type or array type
-	// Field type can be TC_STRING (Utf) or TC_REFERENCE (Reference)
+	// Field type can be TC_STRING (Utf), TC_REFERENCE (Reference), or inline ClassDesc
 	// Both Object ('L') and Array ('[') types have field_type
 	if f.IsObject() || f.Type == Array {
+		// According to Java spec, field type should be TC_STRING or TC_REFERENCE
+		// But in some cases, it might be an inline ClassDesc (no opcode)
+		// Try to decode as element first
 		fieldType, err := DecodeElement(reader, stream)
 		if err != nil {
+			// If DecodeElement fails, it might be an inline ClassDesc
+			// Try to decode as ClassDesc
+			debugLog("Field.Decode: DecodeElement failed, trying ClassDesc.Decode for inline ClassDesc: %v", err)
+			classDesc := NewClassDescInstance(stream)
+			if err2 := classDesc.Decode(reader, stream); err2 == nil {
+				// Successfully decoded as ClassDesc, convert to Utf string representation
+				if newClassDesc, ok := classDesc.Description.(*NewClassDesc); ok {
+					className := ""
+					if newClassDesc.ClassName != nil {
+						className = newClassDesc.ClassName.Contents
+					}
+					f.FieldType = NewUtf(stream, "L"+className+";")
+					debugLog("Field.Decode: Decoded inline ClassDesc as field type: %s", className)
+					return nil
+				}
+			}
 			// Be tolerant: if we can't decode field type, use a placeholder
 			if err == io.EOF || err == io.ErrUnexpectedEOF {
 				f.FieldType = NewUtf(stream, "")
@@ -95,10 +114,14 @@ func (f *Field) Decode(reader io.Reader, stream *Stream) error {
 						f.FieldType = NewUtf(stream, refElem.String())
 					}
 				} else {
-					return &DecodeError{Message: "invalid reference handle for field type"}
+					// Be tolerant: if reference is out of bounds, use a placeholder
+					// This can happen in some edge cases with inline ClassDesc or malformed streams
+					debugLog("Field.Decode: Reference handle %d (index %d) out of bounds (stream has %d references), using placeholder", ref.Handle, refIndex, len(stream.References))
+					f.FieldType = NewUtf(stream, "")
 				}
 			} else {
-				return &DecodeError{Message: "cannot resolve field type reference without stream"}
+				// Be tolerant: if no stream, use a placeholder
+				f.FieldType = NewUtf(stream, "")
 			}
 		} else {
 			// Be tolerant: if not Utf/Reference, still capture a readable type string

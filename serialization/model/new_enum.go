@@ -26,12 +26,22 @@ func (ne *NewEnum) Decode(reader io.Reader, stream *Stream) error {
 
 	// Decode enum class description (ClassDesc)
 	ne.EnumClassDesc = NewClassDescInstance(stream)
+	debugLog("NewEnum.Decode: Starting to decode enumClassDesc")
 	if err := ne.EnumClassDesc.Decode(reader, stream); err != nil {
+		debugLog("NewEnum.Decode: Failed to decode enumClassDesc: %v", err)
 		// Be tolerant for empty/minimal input
 		if err == io.EOF || err == io.ErrUnexpectedEOF {
 			return nil
 		}
 		return &DecodeError{Message: "failed to decode enum class description"}
+	}
+	debugLog("NewEnum.Decode: Successfully decoded enumClassDesc")
+	if newClassDesc, ok := ne.EnumClassDesc.Description.(*NewClassDesc); ok {
+		debugLog("NewEnum.Decode: EnumClassDesc is NewClassDesc, SerialVersionUID=0x%016x, OmitFlagsAndFields=%v",
+			newClassDesc.SerialVersion, newClassDesc.OmitFlagsAndFields)
+		if newClassDesc.ClassAnnotation != nil {
+			debugLog("NewEnum.Decode: EnumClassDesc has ClassAnnotation with %d elements", len(newClassDesc.ClassAnnotation.Contents))
+		}
 	}
 
 	// Add reference to stream

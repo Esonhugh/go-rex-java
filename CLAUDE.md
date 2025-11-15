@@ -53,3 +53,7 @@ const (
 8. you can access web browser to gain any information you need.
 9. Oracle Document is https://docs.oracle.com/javase/8/docs/platform/serialization/spec/protocol.html
 10. you can use ruby test to detect if ruby code works and compare with your golang impelment and find the differ.
+
+## Task 4
+
+1. find 

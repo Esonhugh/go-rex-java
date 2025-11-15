@@ -30,7 +30,7 @@ func TestPayloadEncodingComparison(t *testing.T) {
 	}
 
 	// Test CommonsCollections5 (known to match perfectly)
-	testPayloads := []string{"CommonsCollections5", "Hibernate1", "JBossInterceptors1", "JSON1"}
+	testPayloads := []string{"CommonsCollections5", "Hibernate1", "JBossInterceptors1", "JSON1", "MozillaRhino1", "MozillaRhino2"}
 
 	for _, payloadName := range testPayloads {
 		payload, exists := payloads.None[payloadName]
